@@ -96,6 +96,7 @@ static void xenvif_idx_release(struct xenvif_queue *queue, u16 pending_idx,
 
 static void make_tx_response(struct xenvif_queue *queue,
 			     struct xen_netif_tx_request *txp,
+			     unsigned int extra_count,
 			     s8       st);
 static void push_tx_responses(struct xenvif_queue *queue);
 
@@ -708,14 +709,15 @@ void xenvif_tx_credit_callback(unsigned long data)
 }
 
 static void xenvif_tx_err(struct xenvif_queue *queue,
-			  struct xen_netif_tx_request *txp, RING_IDX end)
+			  struct xen_netif_tx_request *txp,
+			  unsigned int extra_count, RING_IDX end)
 {
 	RING_IDX cons = queue->tx.req_cons;
 	unsigned long flags;
 
 	do {
 		spin_lock_irqsave(&queue->response_lock, flags);
-		make_tx_response(queue, txp, XEN_NETIF_RSP_ERROR);
+		make_tx_response(queue, txp, extra_count, XEN_NETIF_RSP_ERROR);
 		push_tx_responses(queue);
 		spin_unlock_irqrestore(&queue->response_lock, flags);
 		if (cons == end)
@@ -736,6 +738,7 @@ static void xenvif_fatal_tx_err(struct xenvif *vif)
 
 static int xenvif_count_requests(struct xenvif_queue *queue,
 				 struct xen_netif_tx_request *first,
+				 unsigned int extra_count,
 				 struct xen_netif_tx_request *txp,
 				 int work_to_do)
 {
@@ -824,7 +827,7 @@ static int xenvif_count_requests(struct xenvif_queue *queue,
 	} while (more_data);
 
 	if (drop_err) {
-		xenvif_tx_err(queue, first, cons + slots);
+		xenvif_tx_err(queue, first, extra_count, cons + slots);
 		return drop_err;
 	}
 
@@ -839,9 +842,10 @@ struct xenvif_tx_cb {
 #define XENVIF_TX_CB(skb) ((struct xenvif_tx_cb *)(skb)->cb)
 
 static inline void xenvif_tx_create_map_op(struct xenvif_queue *queue,
-					  u16 pending_idx,
-					  struct xen_netif_tx_request *txp,
-					  struct gnttab_map_grant_ref *mop)
+					   u16 pending_idx,
+					   struct xen_netif_tx_request *txp,
+					   unsigned int extra_count,
+					   struct gnttab_map_grant_ref *mop)
 {
 	queue->pages_to_map[mop-queue->tx_map_ops] = queue->mmap_pages[pending_idx];
 	gnttab_set_map_op(mop, idx_to_kaddr(queue, pending_idx),
@@ -850,6 +854,7 @@ static inline void xenvif_tx_create_map_op(struct xenvif_queue *queue,
 
 	memcpy(&queue->pending_tx_info[pending_idx].req, txp,
 	       sizeof(*txp));
+	queue->pending_tx_info[pending_idx].extra_count = extra_count;
 }
 
 static inline struct sk_buff *xenvif_alloc_skb(unsigned int size)
@@ -892,7 +897,7 @@ static struct gnttab_map_grant_ref *xenvif_get_requests(struct xenvif_queue *que
 	     shinfo->nr_frags++, txp++, gop++) {
 		index = pending_index(queue->pending_cons++);
 		pending_idx = queue->pending_ring[index];
-		xenvif_tx_create_map_op(queue, pending_idx, txp, gop);
+		xenvif_tx_create_map_op(queue, pending_idx, txp, 0, gop);
 		frag_set_pending_idx(&frags[shinfo->nr_frags], pending_idx);
 	}
 
@@ -905,7 +910,8 @@ static struct gnttab_map_grant_ref *xenvif_get_requests(struct xenvif_queue *que
 		     shinfo->nr_frags++, txp++, gop++) {
 			index = pending_index(queue->pending_cons++);
 			pending_idx = queue->pending_ring[index];
-			xenvif_tx_create_map_op(queue, pending_idx, txp, gop);
+			xenvif_tx_create_map_op(queue, pending_idx, txp, 0,
+						gop);
 			frag_set_pending_idx(&frags[shinfo->nr_frags],
 					     pending_idx);
 		}
@@ -1107,8 +1113,9 @@ static void xenvif_fill_frags(struct xenvif_queue *queue, struct sk_buff *skb)
 }
 
 static int xenvif_get_extras(struct xenvif_queue *queue,
-				struct xen_netif_extra_info *extras,
-				int work_to_do)
+			     struct xen_netif_extra_info *extras,
+			     unsigned int *extra_count,
+			     int work_to_do)
 {
 	struct xen_netif_extra_info extra;
 	RING_IDX cons = queue->tx.req_cons;
@@ -1121,9 +1128,12 @@ static int xenvif_get_extras(struct xenvif_queue *queue,
 		}
 
 		RING_COPY_REQUEST(&queue->tx, cons, &extra);
+
+		queue->tx.req_cons = ++cons;
+		(*extra_count)++;
+
 		if (unlikely(!extra.type ||
 			     extra.type >= XEN_NETIF_EXTRA_TYPE_MAX)) {
-			queue->tx.req_cons = ++cons;
 			netdev_err(queue->vif->dev,
 				   "Invalid extra type: %d\n", extra.type);
 			xenvif_fatal_tx_err(queue->vif);
@@ -1131,7 +1141,6 @@ static int xenvif_get_extras(struct xenvif_queue *queue,
 		}
 
 		memcpy(&extras[extra.type - 1], &extra, sizeof(extra));
-		queue->tx.req_cons = ++cons;
 	} while (extra.flags & XEN_NETIF_EXTRA_FLAG_MORE);
 
 	return work_to_do;
@@ -1309,6 +1318,7 @@ static void xenvif_tx_build_gops(struct xenvif_queue *queue,
 		struct xen_netif_tx_request txreq;
 		struct xen_netif_tx_request txfrags[XEN_NETBK_LEGACY_SLOTS_MAX];
 		struct xen_netif_extra_info extras[XEN_NETIF_EXTRA_TYPE_MAX-1];
+		unsigned int extra_count;
 		u16 pending_idx;
 		RING_IDX idx;
 		int work_to_do;
@@ -1345,8 +1355,10 @@ static void xenvif_tx_build_gops(struct xenvif_queue *queue,
 		queue->tx.req_cons = ++idx;
 
 		memset(extras, 0, sizeof(extras));
+		extra_count = 0;
 		if (txreq.flags & XEN_NETTXF_extra_info) {
 			work_to_do = xenvif_get_extras(queue, extras,
+						       &extra_count,
 						       work_to_do);
 			idx = queue->tx.req_cons;
 			if (unlikely(work_to_do < 0))
@@ -1359,7 +1371,7 @@ static void xenvif_tx_build_gops(struct xenvif_queue *queue,
 			extra = &extras[XEN_NETIF_EXTRA_TYPE_MCAST_ADD - 1];
 			ret = xenvif_mcast_add(queue->vif, extra->u.mcast.addr);
 
-			make_tx_response(queue, &txreq,
+			make_tx_response(queue, &txreq, extra_count,
 					 (ret == 0) ?
 					 XEN_NETIF_RSP_OKAY :
 					 XEN_NETIF_RSP_ERROR);
@@ -1373,12 +1385,14 @@ static void xenvif_tx_build_gops(struct xenvif_queue *queue,
 			extra = &extras[XEN_NETIF_EXTRA_TYPE_MCAST_DEL - 1];
 			xenvif_mcast_del(queue->vif, extra->u.mcast.addr);
 
-			make_tx_response(queue, &txreq, XEN_NETIF_RSP_OKAY);
+			make_tx_response(queue, &txreq, extra_count,
+					 XEN_NETIF_RSP_OKAY);
 			push_tx_responses(queue);
 			continue;
 		}
 
-		ret = xenvif_count_requests(queue, &txreq, txfrags, work_to_do);
+		ret = xenvif_count_requests(queue, &txreq, extra_count,
+					    txfrags, work_to_do);
 		if (unlikely(ret < 0))
 			break;
 
@@ -1387,7 +1401,7 @@ static void xenvif_tx_build_gops(struct xenvif_queue *queue,
 		if (unlikely(txreq.size < ETH_HLEN)) {
 			netdev_dbg(queue->vif->dev,
 				   "Bad packet size: %d\n", txreq.size);
-			xenvif_tx_err(queue, &txreq, idx);
+			xenvif_tx_err(queue, &txreq, extra_count, idx);
 			break;
 		}
 
@@ -1412,7 +1426,7 @@ static void xenvif_tx_build_gops(struct xenvif_queue *queue,
 		if (unlikely(skb == NULL)) {
 			netdev_dbg(queue->vif->dev,
 				   "Can't allocate a skb in start_xmit.\n");
-			xenvif_tx_err(queue, &txreq, idx);
+			xenvif_tx_err(queue, &txreq, extra_count, idx);
 			break;
 		}
 
@@ -1432,7 +1446,7 @@ static void xenvif_tx_build_gops(struct xenvif_queue *queue,
 			if (unlikely(nskb == NULL)) {
 				skb_shinfo(skb)->nr_frags = 0;
 				kfree_skb(skb);
-				xenvif_tx_err(queue, &txreq, idx);
+				xenvif_tx_err(queue, &txreq, extra_count, idx);
 				if (net_ratelimit())
 					netdev_err(queue->vif->dev,
 						   "Can't allocate the frag_list skb.\n");
@@ -1474,13 +1488,16 @@ static void xenvif_tx_build_gops(struct xenvif_queue *queue,
 		if (data_len < txreq.size) {
 			frag_set_pending_idx(&skb_shinfo(skb)->frags[0],
 					     pending_idx);
-			xenvif_tx_create_map_op(queue, pending_idx, &txreq, gop);
+			xenvif_tx_create_map_op(queue, pending_idx, &txreq,
+						extra_count, gop);
 			gop++;
 		} else {
 			frag_set_pending_idx(&skb_shinfo(skb)->frags[0],
 					     INVALID_PENDING_IDX);
-			memcpy(&queue->pending_tx_info[pending_idx].req, &txreq,
-			       sizeof(txreq));
+			memcpy(&queue->pending_tx_info[pending_idx].req,
+			       &txreq, sizeof(txreq));
+			queue->pending_tx_info[pending_idx].extra_count =
+				extra_count;
 		}
 
 		queue->pending_cons++;
@@ -1829,7 +1846,8 @@ static void xenvif_idx_release(struct xenvif_queue *queue, u16 pending_idx,
 
 	spin_lock_irqsave(&queue->response_lock, flags);
 
-	make_tx_response(queue, &pending_tx_info->req, status);
+	make_tx_response(queue, &pending_tx_info->req,
+			 pending_tx_info->extra_count, status);
 
 	/* Release the pending index before pusing the Tx response so
 	 * its available before a new Tx request is pushed by the
@@ -1846,6 +1864,7 @@ static void xenvif_idx_release(struct xenvif_queue *queue, u16 pending_idx,
 
 static void make_tx_response(struct xenvif_queue *queue,
 			     struct xen_netif_tx_request *txp,
+			     unsigned int extra_count,
 			     s8       st)
 {
 	RING_IDX i = queue->tx.rsp_prod_pvt;
@@ -1855,7 +1874,7 @@ static void make_tx_response(struct xenvif_queue *queue,
 	resp->id     = txp->id;
 	resp->status = st;
 
-	if (txp->flags & XEN_NETTXF_extra_info)
+	while (extra_count-- != 0)
 		RING_GET_RESPONSE(&queue->tx, ++i)->status = XEN_NETIF_RSP_NULL;
 
 	queue->tx.rsp_prod_pvt = ++i;
