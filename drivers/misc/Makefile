@@ -80,7 +80,7 @@ obj-$(CONFIG_POWERKEY_FORCECRASH) += powerkey_forcecrash.o
 obj-$(CONFIG_MMTUNER_MN8855x) += mm_tuner/
 obj-$(CONFIG_ONESEG_TUNER_SMTVJ19X) += oneseg_tuner_drv.o
 
-# TODO: remove me b/62057517
+# TODO: remove me b/62058353
 subdir-ccflags-y += \
 	-Wno-ignored-attributes \
 	-Wno-header-guard
