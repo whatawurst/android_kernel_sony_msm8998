@@ -345,12 +345,12 @@ int wil_cid_fill_sinfo(struct wil6210_priv *wil, int cid,
 
 	wil_dbg_wmi(wil, "Link status for CID %d: {\n"
 		    "  MCS %d TSF 0x%016llx\n"
-		    "  BF status 0x%08x RSSI %d SQI %d%%\n"
+		    "  BF status 0x%08x SNR 0x%08x SQI %d%%\n"
 		    "  Tx Tpt %d goodput %d Rx goodput %d\n"
 		    "  Sectors(rx:tx) my %d:%d peer %d:%d\n""}\n",
 		    cid, le16_to_cpu(reply.evt.bf_mcs),
 		    le64_to_cpu(reply.evt.tsf), reply.evt.status,
-		    reply.evt.rssi,
+		    le32_to_cpu(reply.evt.snr_val),
 		    reply.evt.sqi,
 		    le32_to_cpu(reply.evt.tx_tpt),
 		    le32_to_cpu(reply.evt.tx_goodput),
@@ -384,11 +384,7 @@ int wil_cid_fill_sinfo(struct wil6210_priv *wil, int cid,
 
 	if (test_bit(wil_status_fwconnected, wil->status)) {
 		sinfo->filled |= BIT(NL80211_STA_INFO_SIGNAL);
-		if (test_bit(WMI_FW_CAPABILITY_RSSI_REPORTING,
-			     wil->fw_capabilities))
-			sinfo->signal = reply.evt.rssi;
-		else
-			sinfo->signal = reply.evt.sqi;
+		sinfo->signal = reply.evt.sqi;
 	}
 
 	return rc;
@@ -964,7 +960,7 @@ int wil_cfg80211_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
 	wil_hex_dump_misc("mgmt tx frame ", DUMP_PREFIX_OFFSET, 16, 1, buf,
 			  len, true);
 
-	if (len < sizeof(struct ieee80211_hdr_3addr))
+	if (len < sizeof(struct ieee80211_mgmt))
 		return -EINVAL;
 
 	cmd = kmalloc(sizeof(*cmd) + len, GFP_KERNEL);
@@ -1874,7 +1870,7 @@ static void wil_wiphy_init(struct wiphy *wiphy)
 
 	wiphy->bands[IEEE80211_BAND_60GHZ] = &wil_band_60ghz;
 
-	/* may change after reading FW capabilities */
+	/* TODO: figure this out */
 	wiphy->signal_type = CFG80211_SIGNAL_TYPE_UNSPEC;
 
 	wiphy->cipher_suites = wil_cipher_suites;

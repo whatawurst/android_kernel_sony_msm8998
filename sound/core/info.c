@@ -754,11 +754,8 @@ snd_info_create_entry(const char *name, struct snd_info_entry *parent)
 	INIT_LIST_HEAD(&entry->children);
 	INIT_LIST_HEAD(&entry->list);
 	entry->parent = parent;
-	if (parent) {
-		mutex_lock(&parent->access);
+	if (parent)
 		list_add_tail(&entry->list, &parent->children);
-		mutex_unlock(&parent->access);
-	}
 	return entry;
 }
 

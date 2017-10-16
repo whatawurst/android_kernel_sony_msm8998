@@ -81,11 +81,7 @@ struct sde_crtc_frame_event {
  * @debugfs_root  : Parent of debugfs node
  * @vblank_cb_count : count of vblank callback since last reset
  * @vblank_cb_time  : ktime at vblank count reset
- * @vblank_requested : whether the user has requested vblank events
- * @suspend         : whether or not a suspend operation is in progress
- * @enabled       : whether the SDE CRTC is currently enabled. updated in the
- *                  commit-thread, not state-swap time which is earlier, so
- *                  safe to make decisions on during VBLANK on/off work
+ * @vblank_refcount : reference count for vblank enable request
  * @feature_list  : list of color processing features supported on a crtc
  * @active_list   : list of color processing features are active
  * @dirty_list    : list of color processing features are dirty
@@ -120,9 +116,7 @@ struct sde_crtc {
 
 	u32 vblank_cb_count;
 	ktime_t vblank_cb_time;
-	bool vblank_requested;
-	bool suspend;
-	bool enabled;
+	atomic_t vblank_refcount;
 
 	struct list_head feature_list;
 	struct list_head active_list;

@@ -24,7 +24,6 @@ struct modem_data {
 	struct subsys_device *subsys;
 	struct subsys_desc subsys_desc;
 	void *ramdump_dev;
-	void *minidump_dev;
 	bool crash_shutdown;
 	u32 pas_id;
 	bool ignore_errors;

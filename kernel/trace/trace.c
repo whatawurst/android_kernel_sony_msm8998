@@ -11,6 +11,11 @@
  *  Copyright (C) 2004-2006 Ingo Molnar
  *  Copyright (C) 2004 Nadia Yvette Chambers
  */
+/*
+ * NOTE: This file has been modified by Sony Mobile Communications Inc.
+ * Modifications are Copyright (c) 2016 Sony Mobile Communications Inc,
+ * and licensed under the license of the file.
+ */
 #include <linux/ring_buffer.h>
 #include <generated/utsrelease.h>
 #include <linux/stacktrace.h>
@@ -1362,7 +1367,7 @@ static arch_spinlock_t trace_cmdline_lock = __ARCH_SPIN_LOCK_UNLOCKED;
 struct saved_cmdlines_buffer {
 	unsigned map_pid_to_cmdline[PID_MAX_DEFAULT+1];
 	unsigned *map_cmdline_to_pid;
-	unsigned *map_cmdline_to_tgid;
+	unsigned *saved_tgids;
 	unsigned cmdline_num;
 	int cmdline_idx;
 	char *saved_cmdlines;
@@ -1396,10 +1401,9 @@ static int allocate_cmdlines_buffer(unsigned int val,
 		return -ENOMEM;
 	}
 
-	s->map_cmdline_to_tgid = kmalloc_array(val,
-					       sizeof(*s->map_cmdline_to_tgid),
-					       GFP_KERNEL);
-	if (!s->map_cmdline_to_tgid) {
+	s->saved_tgids = kmalloc_array(val, sizeof(*s->saved_tgids),
+					GFP_KERNEL);
+	if (!s->saved_tgids) {
 		kfree(s->map_cmdline_to_pid);
 		kfree(s->saved_cmdlines);
 		return -ENOMEM;
@@ -1411,8 +1415,8 @@ static int allocate_cmdlines_buffer(unsigned int val,
 	       sizeof(s->map_pid_to_cmdline));
 	memset(s->map_cmdline_to_pid, NO_CMDLINE_MAP,
 	       val * sizeof(*s->map_cmdline_to_pid));
-	memset(s->map_cmdline_to_tgid, NO_CMDLINE_MAP,
-	       val * sizeof(*s->map_cmdline_to_tgid));
+	memset(s->saved_tgids, 0,
+	       val * sizeof(*s->saved_tgids));
 
 	return 0;
 }
@@ -1578,17 +1582,14 @@ static int trace_save_cmdline(struct task_struct *tsk)
 	if (!tsk->pid || unlikely(tsk->pid > PID_MAX_DEFAULT))
 		return 0;
 
-	preempt_disable();
 	/*
 	 * It's not the end of the world if we don't get
 	 * the lock, but we also don't want to spin
 	 * nor do we want to disable interrupts,
 	 * so if we miss here, then better luck next time.
 	 */
-	if (!arch_spin_trylock(&trace_cmdline_lock)) {
-		preempt_enable();
+	if (!arch_spin_trylock(&trace_cmdline_lock))
 		return 0;
-	}
 
 	idx = savedcmd->map_pid_to_cmdline[tsk->pid];
 	if (idx == NO_CMDLINE_MAP) {
@@ -1611,9 +1612,8 @@ static int trace_save_cmdline(struct task_struct *tsk)
 	}
 
 	set_cmdline(idx, tsk->comm);
-	savedcmd->map_cmdline_to_tgid[idx] = tsk->tgid;
+	savedcmd->saved_tgids[idx] = tsk->tgid;
 	arch_spin_unlock(&trace_cmdline_lock);
-	preempt_enable();
 
 	return 1;
 }
@@ -1655,28 +1655,18 @@ void trace_find_cmdline(int pid, char comm[])
 	preempt_enable();
 }
 
-static int __find_tgid_locked(int pid)
+int trace_find_tgid(int pid)
 {
 	unsigned map;
 	int tgid;
 
-	map = savedcmd->map_pid_to_cmdline[pid];
-	if (map != NO_CMDLINE_MAP)
-		tgid = savedcmd->map_cmdline_to_tgid[map];
-	else
-		tgid = -1;
-
-	return tgid;
-}
-
-int trace_find_tgid(int pid)
-{
-	int tgid;
-
 	preempt_disable();
 	arch_spin_lock(&trace_cmdline_lock);
-
-	tgid = __find_tgid_locked(pid);
+	map = savedcmd->map_pid_to_cmdline[pid];
+	if (map != NO_CMDLINE_MAP)
+		tgid = savedcmd->saved_tgids[map];
+	else
+		tgid = -1;
 
 	arch_spin_unlock(&trace_cmdline_lock);
 	preempt_enable();
@@ -2069,6 +2059,7 @@ static char *get_trace_buf(void)
 	return this_cpu_ptr(&percpu_buffer->buffer[0]);
 }
 
+#ifdef CONFIG_TRACE_PRINTK
 static int alloc_percpu_trace_buffer(void)
 {
 	struct trace_buffer_struct *buffers;
@@ -2109,11 +2100,13 @@ static int alloc_percpu_trace_buffer(void)
 	WARN(1, "Could not allocate percpu trace_printk buffer");
 	return -ENOMEM;
 }
+#endif
 
 static int buffers_allocated;
 
 void trace_printk_init_buffers(void)
 {
+#ifdef CONFIG_TRACE_PRINTK
 	if (buffers_allocated)
 		return;
 
@@ -2150,6 +2143,9 @@ void trace_printk_init_buffers(void)
 	 */
 	if (global_trace.trace_buffer.buffer)
 		tracing_start_cmdline_record();
+#else
+	return;
+#endif
 }
 
 void trace_printk_start_comm(void)
@@ -3994,15 +3990,10 @@ tracing_saved_cmdlines_size_read(struct file *filp, char __user *ubuf,
 {
 	char buf[64];
 	int r;
-	unsigned int n;
 
-	preempt_disable();
 	arch_spin_lock(&trace_cmdline_lock);
-	n = savedcmd->cmdline_num;
+	r = scnprintf(buf, sizeof(buf), "%u\n", savedcmd->cmdline_num);
 	arch_spin_unlock(&trace_cmdline_lock);
-	preempt_enable();
-
-	r = scnprintf(buf, sizeof(buf), "%u\n", n);
 
 	return simple_read_from_buffer(ubuf, cnt, ppos, buf, r);
 }
@@ -4011,7 +4002,7 @@ static void free_saved_cmdlines_buffer(struct saved_cmdlines_buffer *s)
 {
 	kfree(s->saved_cmdlines);
 	kfree(s->map_cmdline_to_pid);
-	kfree(s->map_cmdline_to_tgid);
+	kfree(s->saved_tgids);
 	kfree(s);
 }
 
@@ -4028,12 +4019,10 @@ static int tracing_resize_saved_cmdlines(unsigned int val)
 		return -ENOMEM;
 	}
 
-	preempt_disable();
 	arch_spin_lock(&trace_cmdline_lock);
 	savedcmd_temp = savedcmd;
 	savedcmd = s;
 	arch_spin_unlock(&trace_cmdline_lock);
-	preempt_enable();
 	free_saved_cmdlines_buffer(savedcmd_temp);
 
 	return 0;
@@ -4252,61 +4241,33 @@ tracing_saved_tgids_read(struct file *file, char __user *ubuf,
 	char *file_buf;
 	char *buf;
 	int len = 0;
+	int pid;
 	int i;
-	int *pids;
-	int n = 0;
 
-	preempt_disable();
-	arch_spin_lock(&trace_cmdline_lock);
-
-	pids = kmalloc_array(savedcmd->cmdline_num, 2*sizeof(int), GFP_KERNEL);
-	if (!pids) {
-		arch_spin_unlock(&trace_cmdline_lock);
-		preempt_enable();
+	file_buf = kmalloc(savedcmd->cmdline_num*(16+1+16), GFP_KERNEL);
+	if (!file_buf)
 		return -ENOMEM;
-	}
+
+	buf = file_buf;
 
 	for (i = 0; i < savedcmd->cmdline_num; i++) {
-		int pid;
+		int tgid;
+		int r;
 
 		pid = savedcmd->map_cmdline_to_pid[i];
 		if (pid == -1 || pid == NO_CMDLINE_MAP)
 			continue;
 
-		pids[n] = pid;
-		pids[n+1] = __find_tgid_locked(pid);
-		n += 2;
-	}
-	arch_spin_unlock(&trace_cmdline_lock);
-	preempt_enable();
-
-	if (n == 0) {
-		kfree(pids);
-		return 0;
-	}
-
-	/* enough to hold max pair of pids + space, lr and nul */
-	len = n * 12;
-	file_buf = kmalloc(len, GFP_KERNEL);
-	if (!file_buf) {
-		kfree(pids);
-		return -ENOMEM;
-	}
-
-	buf = file_buf;
-	for (i = 0; i < n && len > 0; i += 2) {
-		int r;
-
-		r = snprintf(buf, len, "%d %d\n", pids[i], pids[i+1]);
+		tgid = trace_find_tgid(pid);
+		r = sprintf(buf, "%d %d\n", pid, tgid);
 		buf += r;
-		len -= r;
+		len += r;
 	}
 
 	len = simple_read_from_buffer(ubuf, cnt, ppos,
-				      file_buf, buf - file_buf);
+				      file_buf, len);
 
 	kfree(file_buf);
-	kfree(pids);
 
 	return len;
 }

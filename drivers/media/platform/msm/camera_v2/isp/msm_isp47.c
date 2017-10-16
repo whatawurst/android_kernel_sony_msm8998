@@ -274,12 +274,10 @@ int msm_isp47_ahb_clk_cfg(struct vfe_device *vfe_dev,
 	enum cam_ahb_clk_vote src_clk_vote;
 	struct msm_isp_clk_rates clk_rates;
 
-	if (ahb_cfg) {
+	if (ahb_cfg)
 		vote = msm_isp47_get_cam_clk_vote(ahb_cfg->vote);
-		vfe_dev->user_requested_ahb_vote = vote;
-	} else {
-		vote = vfe_dev->user_requested_ahb_vote;
-	}
+	else
+		vote = CAM_AHB_SVS_VOTE;
 
 	vfe_dev->hw_info->vfe_ops.platform_ops.get_clk_rates(vfe_dev,
 							&clk_rates);
@@ -329,7 +327,6 @@ int msm_vfe47_init_hardware(struct vfe_device *vfe_dev)
 	if (rc)
 		goto clk_enable_failed;
 
-	vfe_dev->user_requested_ahb_vote = CAM_AHB_SVS_VOTE;
 	rc = cam_config_ahb_clk(NULL, 0, id, CAM_AHB_SVS_VOTE);
 	if (rc < 0) {
 		pr_err("%s: failed to vote for AHB\n", __func__);
@@ -735,12 +732,6 @@ void msm_vfe47_reg_update(struct vfe_device *vfe_dev,
 		vfe_dev->reg_update_requested;
 	if ((vfe_dev->is_split && vfe_dev->pdev->id == ISP_VFE1) &&
 		((frame_src == VFE_PIX_0) || (frame_src == VFE_SRC_MAX))) {
-		if (!vfe_dev->common_data->dual_vfe_res->vfe_base[ISP_VFE0]) {
-			pr_err("%s vfe_base for ISP_VFE0 is NULL\n", __func__);
-			spin_unlock_irqrestore(&vfe_dev->reg_update_lock,
-				flags);
-			return;
-		}
 		msm_camera_io_w_mb(update_mask,
 			vfe_dev->common_data->dual_vfe_res->vfe_base[ISP_VFE0]
 			+ 0x4AC);

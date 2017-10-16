@@ -144,7 +144,7 @@ enum msm_mdp_conn_property {
 	/* blob properties, always put these first */
 	CONNECTOR_PROP_SDE_INFO,
 	CONNECTOR_PROP_HDR_INFO,
-	CONNECTOR_PROP_HDR_CONTROL,
+	CONNECTOR_PROP_HDR_METADATA,
 
 	/* # of blob properties */
 	CONNECTOR_PROP_BLOBCOUNT,
@@ -158,12 +158,10 @@ enum msm_mdp_conn_property {
 	CONNECTOR_PROP_DST_H,
 	CONNECTOR_PROP_PLL_DELTA,
 	CONNECTOR_PROP_PLL_ENABLE,
-	CONNECTOR_PROP_HDCP_VERSION,
 
 	/* enum/bitmask properties */
 	CONNECTOR_PROP_TOPOLOGY_NAME,
 	CONNECTOR_PROP_TOPOLOGY_CONTROL,
-	CONNECTOR_PROP_LP,
 
 	/* total # of properties */
 	CONNECTOR_PROP_COUNT
@@ -239,10 +237,10 @@ struct msm_display_info {
 
 /**
  * struct - msm_display_kickoff_params - info for display features at kickoff
- * @hdr_ctrl: HDR control info passed from userspace
+ * @hdr_metadata: HDR metadata info passed from userspace
  */
 struct msm_display_kickoff_params {
-	struct drm_msm_ext_panel_hdr_ctrl *hdr_ctrl;
+	struct drm_msm_ext_panel_hdr_metadata *hdr_metadata;
 };
 
 /**
@@ -369,9 +367,6 @@ struct msm_drm_private {
 
 	struct msm_vblank_ctrl vblank_ctrl;
 
-	/* saved atomic state during system suspend */
-	struct drm_atomic_state *suspend_state;
-
 	/* list of clients waiting for events */
 	struct list_head client_event_list;
 };
@@ -418,15 +413,6 @@ void __msm_fence_worker(struct work_struct *work);
 		INIT_WORK(&(_cb)->work, __msm_fence_worker); \
 		(_cb)->func = _func;                         \
 	} while (0)
-
-static inline bool msm_is_suspend_state(struct drm_device *dev)
-{
-	if (!dev || !dev->dev_private)
-		return false;
-
-	return ((struct msm_drm_private *)dev->dev_private)->suspend_state !=
-		NULL;
-}
 
 int msm_atomic_commit(struct drm_device *dev,
 		struct drm_atomic_state *state, bool async);

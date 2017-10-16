@@ -2269,24 +2269,6 @@ static bool ath10k_wmi_rx_is_decrypted(struct ath10k *ar,
 	return true;
 }
 
-int ath10k_wmi_tlv_event_peer_delete_resp(struct ath10k *ar,
-					  struct sk_buff *skb)
-{
-	int ret;
-	struct wmi_peer_delete_resp_ev_arg arg = {};
-
-	ret = ath10k_wmi_pull_peer_delete_resp(ar, skb, &arg);
-	if (ret) {
-		ath10k_warn(ar, "failed to parse peer delete resp: %d\n", ret);
-		dev_kfree_skb(skb);
-		return ret;
-	}
-	ath10k_dbg(ar, ATH10K_DBG_WMI, "WMI_TLV_PEER_DELETE_RESP_EVENTID\n");
-	complete(&ar->peer_delete_done);
-
-	return 0;
-}
-
 int ath10k_wmi_event_mgmt_rx(struct ath10k *ar, struct sk_buff *skb)
 {
 	struct wmi_mgmt_rx_ev_arg arg = {};
@@ -6192,8 +6174,6 @@ void ath10k_wmi_start_scan_init(struct ath10k *ar,
 		| WMI_SCAN_EVENT_BSS_CHANNEL
 		| WMI_SCAN_EVENT_FOREIGN_CHANNEL
 		| WMI_SCAN_EVENT_DEQUEUED;
-	if (QCA_REV_WCN3990(ar))
-		arg->scan_ctrl_flags = ar->fw_flags->flags;
 	arg->scan_ctrl_flags |= WMI_SCAN_CHAN_STAT_EVENT;
 	arg->n_bssids = 1;
 	arg->bssids[0].bssid = "\xFF\xFF\xFF\xFF\xFF\xFF";

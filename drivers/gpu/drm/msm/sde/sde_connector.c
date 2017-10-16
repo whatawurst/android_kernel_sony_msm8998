@@ -10,7 +10,7 @@
  * GNU General Public License for more details.
  */
 
-#define pr_fmt(fmt)	"[drm:%s:%d] " fmt, __func__, __LINE__
+#define pr_fmt(fmt)	"sde-drm:[%s] " fmt, __func__
 #include "msm_drv.h"
 
 #include "sde_kms.h"
@@ -36,13 +36,6 @@ static const struct drm_prop_enum_list e_topology_control[] = {
 	{SDE_RM_TOPCTL_DSPP,		"dspp"},
 	{SDE_RM_TOPCTL_FORCE_TILING,	"force_tiling"},
 	{SDE_RM_TOPCTL_PPSPLIT,		"ppsplit"}
-};
-
-static const struct drm_prop_enum_list e_power_mode[] = {
-	{SDE_MODE_DPMS_ON,      "ON"},
-	{SDE_MODE_DPMS_LP1,     "LP1"},
-	{SDE_MODE_DPMS_LP2,     "LP2"},
-	{SDE_MODE_DPMS_OFF,     "OFF"},
 };
 
 int sde_connector_get_info(struct drm_connector *connector,
@@ -90,55 +83,11 @@ int sde_connector_pre_kickoff(struct drm_connector *connector)
 	if (!c_conn->ops.pre_kickoff)
 		return 0;
 
-	params.hdr_ctrl = &c_state->hdr_ctrl;
+	params.hdr_metadata = &c_state->hdr_meta;
 
 	rc = c_conn->ops.pre_kickoff(connector, c_conn->display, &params);
 
 	return rc;
-}
-
-enum sde_csc_type sde_connector_get_csc_type(struct drm_connector *conn)
-{
-	struct sde_connector *c_conn;
-
-	if (!conn) {
-		SDE_ERROR("invalid argument\n");
-		return -EINVAL;
-	}
-
-	c_conn = to_sde_connector(conn);
-
-	if (!c_conn->display) {
-		SDE_ERROR("invalid argument\n");
-		return -EINVAL;
-	}
-
-	if (!c_conn->ops.get_csc_type)
-		return SDE_CSC_RGB2YUV_601L;
-
-	return c_conn->ops.get_csc_type(conn, c_conn->display);
-}
-
-bool sde_connector_mode_needs_full_range(struct drm_connector *connector)
-{
-	struct sde_connector *c_conn;
-
-	if (!connector) {
-		SDE_ERROR("invalid argument\n");
-		return false;
-	}
-
-	c_conn = to_sde_connector(connector);
-
-	if (!c_conn->display) {
-		SDE_ERROR("invalid argument\n");
-		return false;
-	}
-
-	if (!c_conn->ops.mode_needs_full_range)
-		return false;
-
-	return c_conn->ops.mode_needs_full_range(c_conn->display);
 }
 
 static void sde_connector_destroy(struct drm_connector *connector)
@@ -162,7 +111,6 @@ static void sde_connector_destroy(struct drm_connector *connector)
 	msm_property_destroy(&c_conn->property_info);
 
 	drm_connector_unregister(connector);
-	mutex_destroy(&c_conn->lock);
 	sde_fence_deinit(&c_conn->retire_fence);
 	drm_connector_cleanup(connector);
 	kfree(c_conn);
@@ -299,7 +247,6 @@ static int _sde_connector_set_hdr_info(
 	void *usr_ptr)
 {
 	struct drm_connector *connector;
-	struct drm_msm_ext_panel_hdr_ctrl *hdr_ctrl;
 	struct drm_msm_ext_panel_hdr_metadata *hdr_meta;
 	int i;
 
@@ -315,26 +262,21 @@ static int _sde_connector_set_hdr_info(
 		return -ENOTSUPP;
 	}
 
-	memset(&c_state->hdr_ctrl, 0, sizeof(c_state->hdr_ctrl));
+	memset(&c_state->hdr_meta, 0, sizeof(c_state->hdr_meta));
 
 	if (!usr_ptr) {
-		SDE_DEBUG_CONN(c_conn, "hdr control cleared\n");
+		SDE_DEBUG_CONN(c_conn, "hdr metadata cleared\n");
 		return 0;
 	}
 
-	if (copy_from_user(&c_state->hdr_ctrl,
+	if (copy_from_user(&c_state->hdr_meta,
 		(void __user *)usr_ptr,
-			sizeof(*hdr_ctrl))) {
-		SDE_ERROR_CONN(c_conn, "failed to copy hdr control\n");
+			sizeof(*hdr_meta))) {
+		SDE_ERROR_CONN(c_conn, "failed to copy hdr metadata\n");
 		return -EFAULT;
 	}
 
-	hdr_ctrl = &c_state->hdr_ctrl;
-
-	SDE_DEBUG_CONN(c_conn, "hdr_supported %d\n",
-				   hdr_ctrl->hdr_state);
-
-	hdr_meta = &hdr_ctrl->hdr_meta;
+	hdr_meta = &c_state->hdr_meta;
 
 	SDE_DEBUG_CONN(c_conn, "hdr_supported %d\n",
 				   hdr_meta->hdr_supported);
@@ -359,56 +301,6 @@ static int _sde_connector_set_hdr_info(
 	}
 
 	return 0;
-}
-
-static int _sde_connector_update_power_locked(struct sde_connector *c_conn)
-{
-	struct drm_connector *connector;
-	void *display;
-	int (*set_power)(struct drm_connector *, int, void *);
-	int mode, rc = 0;
-
-	if (!c_conn)
-		return -EINVAL;
-	connector = &c_conn->base;
-
-	mode = c_conn->lp_mode;
-	if (c_conn->dpms_mode != DRM_MODE_DPMS_ON)
-		mode = SDE_MODE_DPMS_OFF;
-	switch (c_conn->dpms_mode) {
-	case DRM_MODE_DPMS_ON:
-		mode = c_conn->lp_mode;
-		break;
-	case DRM_MODE_DPMS_STANDBY:
-		mode = SDE_MODE_DPMS_STANDBY;
-		break;
-	case DRM_MODE_DPMS_SUSPEND:
-		mode = SDE_MODE_DPMS_SUSPEND;
-		break;
-	case DRM_MODE_DPMS_OFF:
-		mode = SDE_MODE_DPMS_OFF;
-		break;
-	default:
-		mode = c_conn->lp_mode;
-		SDE_ERROR("conn %d dpms set to unrecognized mode %d\n",
-				connector->base.id, mode);
-		break;
-	}
-
-	SDE_DEBUG("conn %d - dpms %d, lp %d, panel %d\n", connector->base.id,
-			c_conn->dpms_mode, c_conn->lp_mode, mode);
-
-	if (mode != c_conn->last_panel_power_mode && c_conn->ops.set_power) {
-		display = c_conn->display;
-		set_power = c_conn->ops.set_power;
-
-		mutex_unlock(&c_conn->lock);
-		rc = set_power(connector, mode, display);
-		mutex_lock(&c_conn->lock);
-	}
-	c_conn->last_panel_power_mode = mode;
-
-	return rc;
 }
 
 static int sde_connector_atomic_set_property(struct drm_connector *connector,
@@ -437,8 +329,8 @@ static int sde_connector_atomic_set_property(struct drm_connector *connector,
 
 	/* connector-specific property handling */
 	idx = msm_property_index(&c_conn->property_info, property);
-	switch (idx) {
-	case CONNECTOR_PROP_OUT_FB:
+
+	if (idx == CONNECTOR_PROP_OUT_FB) {
 		/* clear old fb, if present */
 		if (c_state->out_fb)
 			_sde_connector_destroy_fb(c_conn, c_state);
@@ -462,23 +354,15 @@ static int sde_connector_atomic_set_property(struct drm_connector *connector,
 			if (rc)
 				SDE_ERROR("prep fb failed, %d\n", rc);
 		}
-		break;
-	case CONNECTOR_PROP_TOPOLOGY_CONTROL:
+	}
+
+	if (idx == CONNECTOR_PROP_TOPOLOGY_CONTROL) {
 		rc = sde_rm_check_property_topctl(val);
 		if (rc)
 			SDE_ERROR("invalid topology_control: 0x%llX\n", val);
-		break;
-	case CONNECTOR_PROP_LP:
-		mutex_lock(&c_conn->lock);
-		c_conn->lp_mode = val;
-		_sde_connector_update_power_locked(c_conn);
-		mutex_unlock(&c_conn->lock);
-		break;
-	default:
-		break;
 	}
 
-	if (idx == CONNECTOR_PROP_HDR_CONTROL) {
+	if (idx == CONNECTOR_PROP_HDR_METADATA) {
 		rc = _sde_connector_set_hdr_info(c_conn, c_state, (void *)val);
 		if (rc)
 			SDE_ERROR_CONN(c_conn, "cannot set hdr info %d\n", rc);
@@ -576,60 +460,6 @@ void sde_connector_complete_commit(struct drm_connector *connector)
 	sde_fence_signal(&to_sde_connector(connector)->retire_fence, 0);
 }
 
-static int sde_connector_dpms(struct drm_connector *connector,
-		int mode)
-{
-	struct sde_connector *c_conn;
-
-	if (!connector) {
-		SDE_ERROR("invalid connector\n");
-		return -EINVAL;
-	}
-	c_conn = to_sde_connector(connector);
-
-	/* validate incoming dpms request */
-	switch (mode) {
-	case DRM_MODE_DPMS_ON:
-	case DRM_MODE_DPMS_STANDBY:
-	case DRM_MODE_DPMS_SUSPEND:
-	case DRM_MODE_DPMS_OFF:
-		SDE_DEBUG("conn %d dpms set to %d\n",
-			connector->base.id, mode);
-		break;
-	default:
-		SDE_ERROR("conn %d dpms set to unrecognized mode %d\n",
-			connector->base.id, mode);
-		break;
-	}
-
-	mutex_lock(&c_conn->lock);
-	c_conn->dpms_mode = mode;
-	_sde_connector_update_power_locked(c_conn);
-	mutex_unlock(&c_conn->lock);
-
-	/* use helper for boilerplate handling */
-	return drm_atomic_helper_connector_dpms(connector, mode);
-}
-
-int sde_connector_get_dpms(struct drm_connector *connector)
-{
-	struct sde_connector *c_conn;
-	int rc;
-
-	if (!connector) {
-		SDE_DEBUG("invalid connector\n");
-		return DRM_MODE_DPMS_OFF;
-	}
-
-	c_conn = to_sde_connector(connector);
-
-	mutex_lock(&c_conn->lock);
-	rc = c_conn->dpms_mode;
-	mutex_unlock(&c_conn->lock);
-
-	return rc;
-}
-
 static void sde_connector_update_hdr_props(struct drm_connector *connector)
 {
 	struct sde_connector *c_conn = to_sde_connector(connector);
@@ -678,7 +508,7 @@ sde_connector_detect(struct drm_connector *connector, bool force)
 }
 
 static const struct drm_connector_funcs sde_connector_ops = {
-	.dpms =                   sde_connector_dpms,
+	.dpms =                   drm_atomic_helper_connector_dpms,
 	.reset =                  sde_connector_atomic_reset,
 	.detect =                 sde_connector_detect,
 	.destroy =                sde_connector_destroy,
@@ -768,7 +598,6 @@ struct drm_connector *sde_connector_init(struct drm_device *dev,
 	struct sde_kms *sde_kms;
 	struct sde_kms_info *info;
 	struct sde_connector *c_conn = NULL;
-	struct sde_splash_info *sinfo;
 	int rc;
 
 	if (!dev || !dev->dev_private || !encoder) {
@@ -800,11 +629,6 @@ struct drm_connector *sde_connector_init(struct drm_device *dev,
 	c_conn->encoder = encoder;
 	c_conn->panel = panel;
 	c_conn->display = display;
-
-	c_conn->dpms_mode = DRM_MODE_DPMS_ON;
-	c_conn->lp_mode = 0;
-	c_conn->last_panel_power_mode = SDE_MODE_DPMS_ON;
-
 
 	sde_kms = to_sde_kms(priv->kms);
 	if (sde_kms->vbif[VBIF_NRT]) {
@@ -838,8 +662,6 @@ struct drm_connector *sde_connector_init(struct drm_device *dev,
 		SDE_ERROR("failed to init fence, %d\n", rc);
 		goto error_cleanup_conn;
 	}
-
-	mutex_init(&c_conn->lock);
 
 	rc = drm_connector_register(&c_conn->base);
 	if (rc) {
@@ -896,8 +718,8 @@ struct drm_connector *sde_connector_init(struct drm_device *dev,
 	}
 
 	msm_property_install_volatile_range(&c_conn->property_info,
-		"hdr_control", 0x0, 0, ~0, 0,
-		CONNECTOR_PROP_HDR_CONTROL);
+		"hdr_metadata", 0x0, 0, ~0, 0,
+		CONNECTOR_PROP_HDR_METADATA);
 
 	msm_property_install_range(&c_conn->property_info, "RETIRE_FENCE",
 			0x0, 0, INR_OPEN_MAX, 0, CONNECTOR_PROP_RETIRE_FENCE);
@@ -910,10 +732,6 @@ struct drm_connector *sde_connector_init(struct drm_device *dev,
 			"PLL_ENABLE", 0x0, 0, 1, 0,
 			CONNECTOR_PROP_PLL_ENABLE);
 
-	msm_property_install_volatile_range(&c_conn->property_info,
-			"HDCP_VERSION", 0x0, 0, U8_MAX, 0,
-			CONNECTOR_PROP_HDCP_VERSION);
-
 	/* enum/bitmask properties */
 	msm_property_install_enum(&c_conn->property_info, "topology_name",
 			DRM_MODE_PROP_IMMUTABLE, 0, e_topology_name,
@@ -924,11 +742,6 @@ struct drm_connector *sde_connector_init(struct drm_device *dev,
 			ARRAY_SIZE(e_topology_control),
 			CONNECTOR_PROP_TOPOLOGY_CONTROL, 0);
 
-	msm_property_install_enum(&c_conn->property_info, "LP",
-			0, 0, e_power_mode,
-			ARRAY_SIZE(e_power_mode),
-			CONNECTOR_PROP_LP, 0);
-
 	rc = msm_property_install_get_status(&c_conn->property_info);
 	if (rc) {
 		SDE_ERROR("failed to create one or more properties\n");
@@ -937,10 +750,6 @@ struct drm_connector *sde_connector_init(struct drm_device *dev,
 
 	SDE_DEBUG("connector %d attach encoder %d\n",
 			c_conn->base.base.id, encoder->base.id);
-
-	sinfo = &sde_kms->splash_info;
-	if (sinfo && sinfo->handoff)
-		sde_splash_setup_connector_count(sinfo, connector_type);
 
 	priv->connectors[priv->num_connectors++] = &c_conn->base;
 
@@ -955,7 +764,6 @@ error_destroy_property:
 error_unregister_conn:
 	drm_connector_unregister(&c_conn->base);
 error_cleanup_fence:
-	mutex_destroy(&c_conn->lock);
 	sde_fence_deinit(&c_conn->retire_fence);
 error_cleanup_conn:
 	drm_connector_cleanup(&c_conn->base);

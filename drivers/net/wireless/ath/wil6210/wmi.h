@@ -60,7 +60,6 @@ enum wmi_fw_capability {
 	WMI_FW_CAPABILITY_WMI_ONLY		= 5,
 	WMI_FW_CAPABILITY_THERMAL_THROTTLING	= 7,
 	WMI_FW_CAPABILITY_D3_SUSPEND		= 8,
-	WMI_FW_CAPABILITY_RSSI_REPORTING	= 12,
 	WMI_FW_CAPABILITY_MAX,
 };
 
@@ -1307,8 +1306,7 @@ struct wmi_notify_req_done_event {
 	/* beamforming status, 0: fail; 1: OK; 2: retrying */
 	__le32 status;
 	__le64 tsf;
-	s8 rssi;
-	u8 reserved0[3];
+	__le32 snr_val;
 	__le32 tx_tpt;
 	__le32 tx_goodput;
 	__le32 rx_goodput;
@@ -1604,7 +1602,7 @@ struct wmi_get_ssid_event {
 /* wmi_rx_mgmt_info */
 struct wmi_rx_mgmt_info {
 	u8 mcs;
-	s8 rssi;
+	s8 snr;
 	u8 range;
 	u8 sqi;
 	__le16 stype;

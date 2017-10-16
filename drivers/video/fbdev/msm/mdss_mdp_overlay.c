@@ -10,6 +10,11 @@
  * GNU General Public License for more details.
  *
  */
+/*
+ * NOTE: This file has been modified by Sony Mobile Communications Inc.
+ * Modifications are Copyright (c) 2017 Sony Mobile Communications Inc,
+ * and licensed under the license of the file.
+ */
 
 #define pr_fmt(fmt)	"%s: " fmt, __func__
 
@@ -2375,8 +2380,6 @@ static void __overlay_set_secure_transition_state(struct msm_fb_data_type *mfd)
 	/* Reset the secure transition state */
 	mdp5_data->secure_transition_state = SECURE_TRANSITION_NONE;
 
-	mdp5_data->cache_null_commit = list_empty(&mdp5_data->pipes_used);
-
 	/*
 	 * Secure transition would be NONE in two conditions:
 	 * 1. All the features are already disabled and state remains
@@ -2586,7 +2589,6 @@ int mdss_mdp_overlay_kickoff(struct msm_fb_data_type *mfd,
 	ATRACE_BEGIN("sspp_programming");
 	ret = __overlay_queue_pipes(mfd);
 	ATRACE_END("sspp_programming");
-
 	mutex_unlock(&mdp5_data->list_lock);
 
 	mdp5_data->kickoff_released = false;
@@ -5425,6 +5427,10 @@ static int mdss_mdp_overlay_ioctl_handler(struct msm_fb_data_type *mfd,
 	struct msmfb_overlay_data data;
 	struct mdp_set_cfg cfg;
 
+#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
+	if (mfd->spec_mfd.off_sts)
+		return 0;
+#endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
 	switch (cmd) {
 	case MSMFB_MDP_PP:
 		ret = mdss_mdp_pp_ioctl(mfd, argp);

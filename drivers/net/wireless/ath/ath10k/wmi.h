@@ -2960,8 +2960,6 @@ struct wmi_start_scan_arg {
 /* Different FW scan engine may choose to bail out on errors.
  * Allow the driver to have influence over that. */
 #define WMI_SCAN_CONTINUE_ON_ERROR 0x80
-/** add DS content in probe req frame */
-#define WMI_SCAN_ADD_DS_IE_IN_PROBE_REQ   0x800
 
 /* WMI_SCAN_CLASS_MASK must be the same value as IEEE80211_SCAN_CLASS_MASK */
 #define WMI_SCAN_CLASS_MASK 0xFF000000
@@ -6236,11 +6234,6 @@ struct wmi_scan_ev_arg {
 	__le32 vdev_id;
 };
 
-struct wmi_peer_delete_resp_ev_arg {
-	__le32 vdev_id;
-	struct wmi_mac_addr peer_addr;
-};
-
 struct wmi_mgmt_rx_ev_arg {
 	__le32 channel;
 	__le32 snr;
@@ -6610,8 +6603,6 @@ void ath10k_wmi_put_wmi_channel(struct wmi_channel *ch,
 int ath10k_wmi_start_scan_verify(const struct wmi_start_scan_arg *arg);
 
 int ath10k_wmi_event_scan(struct ath10k *ar, struct sk_buff *skb);
-int ath10k_wmi_tlv_event_peer_delete_resp(struct ath10k *ar,
-					  struct sk_buff *skb);
 int ath10k_wmi_event_mgmt_rx(struct ath10k *ar, struct sk_buff *skb);
 void ath10k_wmi_event_chan_info(struct ath10k *ar, struct sk_buff *skb);
 void ath10k_wmi_event_echo(struct ath10k *ar, struct sk_buff *skb);

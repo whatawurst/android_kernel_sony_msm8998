@@ -863,14 +863,7 @@ int msm_gpu_init(struct drm_device *drm, struct platform_device *pdev,
 	gpu->dev = drm;
 	gpu->funcs = funcs;
 	gpu->name = name;
-	/*
-	 * Set the inactive flag to false, so that when the retire worker
-	 * kicks in from the init path, it knows that it has to turn off the
-	 * clocks. This should be fine to do since this is the init sequence
-	 * and we have an init_lock in msm_open() to protect against bad things
-	 * from happening.
-	 */
-	gpu->inactive = false;
+	gpu->inactive = true;
 
 	INIT_LIST_HEAD(&gpu->active_list);
 	INIT_WORK(&gpu->retire_work, retire_worker);
@@ -904,7 +897,6 @@ int msm_gpu_init(struct drm_device *drm, struct platform_device *pdev,
 	ret = devm_request_irq(&pdev->dev, gpu->irq, irq_handler,
 			IRQF_TRIGGER_HIGH, gpu->name, gpu);
 	if (ret) {
-		gpu->irq = ret;
 		dev_err(drm->dev, "failed to request IRQ%u: %d\n", gpu->irq, ret);
 		goto fail;
 	}
@@ -1015,11 +1007,6 @@ void msm_gpu_cleanup(struct msm_gpu *gpu)
 
 	WARN_ON(!list_empty(&gpu->active_list));
 
-	if (gpu->irq >= 0) {
-		disable_irq(gpu->irq);
-		devm_free_irq(&pdev->dev, gpu->irq, gpu);
-	}
-
 	bs_fini(gpu);
 
 	for (i = 0; i < ARRAY_SIZE(gpu->rb); i++)
@@ -1035,22 +1022,4 @@ void msm_gpu_cleanup(struct msm_gpu *gpu)
 
 	msm_gpu_destroy_address_space(gpu->aspace);
 	msm_gpu_destroy_address_space(gpu->secure_aspace);
-
-	if (gpu->gpu_reg)
-		devm_regulator_put(gpu->gpu_reg);
-
-	if (gpu->gpu_cx)
-		devm_regulator_put(gpu->gpu_cx);
-
-	if (gpu->ebi1_clk)
-		devm_clk_put(&pdev->dev, gpu->ebi1_clk);
-
-	for (i = gpu->nr_clocks - 1; i >= 0; i--)
-		if (gpu->grp_clks[i])
-			devm_clk_put(&pdev->dev, gpu->grp_clks[i]);
-
-	devm_kfree(&pdev->dev, gpu->grp_clks);
-
-	if (gpu->mmio)
-		devm_iounmap(&pdev->dev, gpu->mmio);
 }

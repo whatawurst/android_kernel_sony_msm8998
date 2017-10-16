@@ -292,7 +292,6 @@ void msm_delete_stream(unsigned int session_id, unsigned int stream_id)
 		return;
 
 	while (1) {
-		unsigned long wl_flags;
 
 		if (try_count > 5) {
 			pr_err("%s : not able to delete stream %d\n",
@@ -300,20 +299,18 @@ void msm_delete_stream(unsigned int session_id, unsigned int stream_id)
 			break;
 		}
 
-		write_lock_irqsave(&session->stream_rwlock, wl_flags);
+		write_lock(&session->stream_rwlock);
 		try_count++;
 		stream = msm_queue_find(&session->stream_q, struct msm_stream,
 			list, __msm_queue_find_stream, &stream_id);
 
 		if (!stream) {
-			write_unlock_irqrestore(&session->stream_rwlock,
-				wl_flags);
+			write_unlock(&session->stream_rwlock);
 			return;
 		}
 
 		if (msm_vb2_get_stream_state(stream) != 1) {
-			write_unlock_irqrestore(&session->stream_rwlock,
-				wl_flags);
+			write_unlock(&session->stream_rwlock);
 			continue;
 		}
 
@@ -323,7 +320,7 @@ void msm_delete_stream(unsigned int session_id, unsigned int stream_id)
 		kfree(stream);
 		stream = NULL;
 		spin_unlock_irqrestore(&(session->stream_q.lock), flags);
-		write_unlock_irqrestore(&session->stream_rwlock, wl_flags);
+		write_unlock(&session->stream_rwlock);
 		break;
 	}
 
@@ -394,9 +391,6 @@ static void msm_add_sd_in_position(struct msm_sd_subdev *msm_subdev,
 	struct msm_sd_subdev *temp_sd;
 
 	list_for_each_entry(temp_sd, sd_list, list) {
-		if (temp_sd == msm_subdev) {
-			return;
-		}
 		if (msm_subdev->close_seq < temp_sd->close_seq) {
 			list_add_tail(&msm_subdev->list, &temp_sd->list);
 			return;
@@ -729,19 +723,6 @@ static long msm_private_ioctl(struct file *file, void *fh,
 	if (cmd == MSM_CAM_V4L2_IOCTL_DAEMON_DISABLED) {
 		is_daemon_status = false;
 		return 0;
-	}
-
-	if (!event_data)
-		return -EINVAL;
-
-	switch (cmd) {
-	case MSM_CAM_V4L2_IOCTL_NOTIFY:
-	case MSM_CAM_V4L2_IOCTL_CMD_ACK:
-	case MSM_CAM_V4L2_IOCTL_NOTIFY_DEBUG:
-	case MSM_CAM_V4L2_IOCTL_NOTIFY_ERROR:
-		break;
-	default:
-		return -ENOTTY;
 	}
 
 	memset(&event, 0, sizeof(struct v4l2_event));

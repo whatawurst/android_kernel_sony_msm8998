@@ -116,6 +116,7 @@ dtb-$(CONFIG_ARCH_MSM8996) += msm8996-v2-pmi8994-cdp.dtb \
 
 dtb-$(CONFIG_MSM_GVM_QUIN) += vplatform-lfv-msm8996.dtb
 
+ifneq ($(CONFIG_ARCH_SONY_YOSHINO),y)
 ifeq ($(CONFIG_BUILD_ARM64_DT_OVERLAY),y)
 dtbo-$(CONFIG_ARCH_MSM8998) += \
 	msm8998-cdp-overlay.dtbo \
@@ -168,13 +169,20 @@ dtb-$(CONFIG_ARCH_MSM8998) += msm8998-sim.dtb \
 	apq8098-v2.1-cdp.dtb \
 	apq8098-v2.1-qrd.dtb \
 	apq8098-v2.1-mediabox.dtb \
-	apq8098-v2.1-svr20.dtb \
 	msm8998-v2.1-interposer-sdm660-cdp.dtb \
 	msm8998-v2.1-interposer-sdm660-mtp.dtb \
-	msm8998-v2.1-interposer-sdm660-qrd.dtb \
-	msm8998-9x55-rcm.dtb \
-	msm8998-9x55-cdp.dtb \
-	msm8998-9x55-mtp.dtb
+	msm8998-v2.1-interposer-sdm660-qrd.dtb
+endif
+else
+dtb-$(CONFIG_MACH_SONY_POPLAR) += msm8998-yoshino-poplar_generic.dtb \
+	msm8998-v2-yoshino-poplar_generic.dtb \
+	msm8998-v2.1-yoshino-poplar_generic.dtb
+dtb-$(CONFIG_MACH_SONY_POPLAR_DSDS) += msm8998-yoshino-poplar_dsds.dtb \
+	msm8998-v2-yoshino-poplar_dsds.dtb \
+	msm8998-v2.1-yoshino-poplar_dsds.dtb
+dtb-$(CONFIG_MACH_SONY_LILAC) += msm8998-yoshino-lilac_generic.dtb \
+	msm8998-v2-yoshino-lilac_generic.dtb \
+	msm8998-v2.1-yoshino-lilac_generic.dtb
 endif
 
 dtb-$(CONFIG_ARCH_MSMHAMSTER) += msmhamster-rumi.dtb
@@ -229,34 +237,7 @@ dtb-$(CONFIG_ARCH_SDM660) += sdm660-sim.dtb \
 	sda658-rcm.dtb \
 	sda658-pm660a-mtp.dtb \
 	sda658-pm660a-cdp.dtb \
-	sda658-pm660a-rcm.dtb \
-	sdm636-cdp.dtb \
-	sdm636-mtp.dtb \
-	sdm636-qrd.dtb \
-	sdm636-rcm.dtb \
-	sdm636-headset-jacktype-no-cdp.dtb \
-	sdm636-headset-jacktype-no-rcm.dtb \
-	sdm636-internal-codec-cdp.dtb \
-	sdm636-internal-codec-mtp.dtb \
-	sdm636-internal-codec-pm660a-cdp.dtb \
-	sdm636-internal-codec-pm660a-mtp.dtb \
-	sdm636-internal-codec-pm660a-rcm.dtb \
-	sdm636-internal-codec-rcm.dtb \
-	sdm636-pm660a-headset-jacktype-no-cdp.dtb \
-	sdm636-pm660a-headset-jacktype-no-rcm.dtb \
-	sdm636-pm660a-cdp.dtb \
-	sdm636-pm660a-mtp.dtb \
-	sdm636-pm660a-qrd.dtb \
-	sdm636-pm660a-rcm.dtb \
-	sdm636-usbc-audio-mtp.dtb \
-	sdm636-usbc-audio-rcm.dtb \
-	sda636-cdp.dtb \
-	sda636-mtp.dtb \
-	sda636-rcm.dtb \
-	sda636-pm660a-cdp.dtb \
-	sda636-pm660a-mtp.dtb \
-	sda636-pm660a-qrd-hdk.dtb \
-	sda636-pm660a-rcm.dtb
+	sda658-pm660a-rcm.dtb
 
 dtb-$(CONFIG_ARCH_SDM630) += sdm630-rumi.dtb \
 	sdm630-pm660a-rumi.dtb \

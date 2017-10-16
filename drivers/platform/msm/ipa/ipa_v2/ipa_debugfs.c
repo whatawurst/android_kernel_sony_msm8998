@@ -808,11 +808,10 @@ static ssize_t ipa_read_flt(struct file *file, char __user *ubuf, size_t count,
 			eq = true;
 		} else {
 			rt_tbl = ipa_id_find(entry->rule.rt_tbl_hdl);
-			if (rt_tbl == NULL ||
-				rt_tbl->cookie != IPA_RT_TBL_COOKIE)
-				rt_tbl_idx =  ~0;
-			else
+			if (rt_tbl)
 				rt_tbl_idx = rt_tbl->idx;
+			else
+				rt_tbl_idx = ~0;
 			bitmap = entry->rule.attrib.attrib_mask;
 			eq = false;
 		}
@@ -839,11 +838,10 @@ static ssize_t ipa_read_flt(struct file *file, char __user *ubuf, size_t count,
 				eq = true;
 			} else {
 				rt_tbl = ipa_id_find(entry->rule.rt_tbl_hdl);
-				if (rt_tbl == NULL ||
-					rt_tbl->cookie != IPA_RT_TBL_COOKIE)
-					rt_tbl_idx = ~0;
-				else
+				if (rt_tbl)
 					rt_tbl_idx = rt_tbl->idx;
+				else
+					rt_tbl_idx = ~0;
 				bitmap = entry->rule.attrib.attrib_mask;
 				eq = false;
 			}

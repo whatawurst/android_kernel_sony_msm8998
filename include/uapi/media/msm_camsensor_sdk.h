@@ -1,3 +1,8 @@
+/*
+ * NOTE: This file has been modified by Sony Mobile Communications Inc.
+ * Modifications are Copyright (c) 2016 Sony Mobile Communications Inc,
+ * and licensed under the license of the file.
+ */
 #ifndef __UAPI_LINUX_MSM_CAMSENSOR_SDK_H
 #define __UAPI_LINUX_MSM_CAMSENSOR_SDK_H
 
@@ -85,10 +90,8 @@ enum msm_camera_i2c_reg_addr_type {
 	MSM_CAMERA_I2C_BYTE_ADDR = 1,
 	MSM_CAMERA_I2C_WORD_ADDR,
 	MSM_CAMERA_I2C_3B_ADDR,
-	MSM_CAMERA_I2C_DWORD_ADDR,
 	MSM_CAMERA_I2C_ADDR_TYPE_MAX,
 };
-#define MSM_CAMERA_I2C_DWORD_ADDR MSM_CAMERA_I2C_DWORD_ADDR
 
 enum msm_camera_i2c_data_type {
 	MSM_CAMERA_I2C_BYTE_DATA = 1,
@@ -115,10 +118,8 @@ enum msm_sensor_power_seq_gpio_t {
 	SENSOR_GPIO_FL_RESET,
 	SENSOR_GPIO_CUSTOM1,
 	SENSOR_GPIO_CUSTOM2,
-	SENSOR_GPIO_CUSTOM3,
 	SENSOR_GPIO_MAX,
 };
-#define SENSOR_GPIO_CUSTOM3 SENSOR_GPIO_CUSTOM3
 
 enum msm_ir_cut_filter_gpio_t {
 	IR_CUT_FILTER_GPIO_P = 0,
@@ -207,13 +208,6 @@ enum msm_ir_led_cfg_type_t {
 #define CFG_IR_LED_RELEASE CFG_IR_LED_RELEASE
 #define CFG_IR_LED_OFF CFG_IR_LED_OFF
 #define CFG_IR_LED_ON CFG_IR_LED_ON
-
-enum msm_laser_led_cfg_type_t {
-	CFG_LASER_LED_INIT,
-	CFG_LASER_LED_CONTROL,
-};
-#define CFG_LASER_LED_INIT CFG_LASER_LED_INIT
-#define CFG_LASER_LED_CONTROL CFG_LASER_LED_CONTROL
 
 enum msm_ir_cut_cfg_type_t {
 	CFG_IR_CUT_INIT = 0,
@@ -376,6 +370,9 @@ struct msm_camera_i2c_seq_reg_array {
 };
 
 struct msm_camera_i2c_seq_reg_setting {
+/* extension begin */
+	unsigned short slave_addr;
+/* extension end */
 	struct msm_camera_i2c_seq_reg_array *reg_setting;
 	unsigned short size;
 	enum msm_camera_i2c_reg_addr_type addr_type;

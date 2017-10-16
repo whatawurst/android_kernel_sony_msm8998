@@ -226,8 +226,8 @@ enum clk_osm_trace_packet_id {
 #define PLL_DD_D0_USER_CTL_LO				0x17916208
 #define PLL_DD_D1_USER_CTL_LO				0x17816208
 
-#define PWRCL_EFUSE_SHIFT				29
-#define PWRCL_EFUSE_MASK				0x7
+#define PWRCL_EFUSE_SHIFT				0
+#define PWRCL_EFUSE_MASK				0
 #define PERFCL_EFUSE_SHIFT				29
 #define PERFCL_EFUSE_MASK				0x7
 
@@ -384,7 +384,6 @@ struct clk_osm {
 	u32 acd_extint1_cfg;
 	u32 acd_autoxfer_ctl;
 	u32 acd_debugfs_addr;
-	u32 acd_debugfs_addr_size;
 	bool acd_init;
 	bool secure_init;
 	bool red_fsm_en;
@@ -623,21 +622,18 @@ static inline bool is_better_rate(unsigned long req, unsigned long best,
 	return (req <= new && new < best) || (best < req && best < new);
 }
 
-static int clk_osm_determine_rate(struct clk_hw *hw,
-					struct clk_rate_request *req)
+static long clk_osm_round_rate(struct clk_hw *hw, unsigned long rate,
+				unsigned long *parent_rate)
 {
 	int i;
 	unsigned long rrate = 0;
-	unsigned long rate = req->rate;
 
 	/*
 	 * If the rate passed in is 0, return the first frequency in the
 	 * FMAX table.
 	 */
-	if (!rate) {
-		req->rate = hw->init->rate_max[0];
-		return 0;
-	}
+	if (!rate)
+		return hw->init->rate_max[0];
 
 	for (i = 0; i < hw->init->num_rate_max; i++) {
 		if (is_better_rate(rate, rrate, hw->init->rate_max[i])) {
@@ -647,12 +643,10 @@ static int clk_osm_determine_rate(struct clk_hw *hw,
 		}
 	}
 
-	req->rate = rrate;
-
 	pr_debug("%s: rate %lu, rrate %ld, Rate max %ld\n", __func__, rate,
 						rrate, hw->init->rate_max[i]);
 
-	return 0;
+	return rrate;
 }
 
 static int clk_osm_search_table(struct osm_entry *table, int entries, long rate)
@@ -683,19 +677,18 @@ static int clk_osm_set_rate(struct clk_hw *hw, unsigned long rate,
 {
 	struct clk_osm *cpuclk = to_clk_osm(hw);
 	int index = 0;
-	struct clk_rate_request req;
+	unsigned long r_rate;
 
-	req.rate = rate;
-	clk_osm_determine_rate(hw, &req);
+	r_rate = clk_osm_round_rate(hw, rate, NULL);
 
-	if (rate != req.rate) {
+	if (rate != r_rate) {
 		pr_err("invalid rate requested rate=%ld\n", rate);
 		return -EINVAL;
 	}
 
 	/* Convert rate to table index */
 	index = clk_osm_search_table(cpuclk->osm_table,
-				     cpuclk->num_entries, req.rate);
+				     cpuclk->num_entries, r_rate);
 	if (index < 0) {
 		pr_err("cannot set cluster %u to %lu\n",
 		       cpuclk->cluster_num, rate);
@@ -779,7 +772,7 @@ static unsigned long clk_osm_recalc_rate(struct clk_hw *hw,
 static struct clk_ops clk_ops_cpu_osm = {
 	.enable = clk_osm_enable,
 	.set_rate = clk_osm_set_rate,
-	.determine_rate = clk_osm_determine_rate,
+	.round_rate = clk_osm_round_rate,
 	.list_rate = clk_osm_list_rate,
 	.recalc_rate = clk_osm_recalc_rate,
 	.debug_init = clk_debug_measure_add,
@@ -1378,7 +1371,6 @@ static int clk_osm_resources_init(struct platform_device *pdev)
 			return -ENOMEM;
 		}
 		pwrcl_clk.pbases[ACD_BASE] = pbase;
-		pwrcl_clk.acd_debugfs_addr_size = resource_size(res);
 		pwrcl_clk.vbases[ACD_BASE] = vbase;
 		pwrcl_clk.acd_init = true;
 	} else {
@@ -1396,7 +1388,6 @@ static int clk_osm_resources_init(struct platform_device *pdev)
 			return -ENOMEM;
 		}
 		perfcl_clk.pbases[ACD_BASE] = pbase;
-		perfcl_clk.acd_debugfs_addr_size = resource_size(res);
 		perfcl_clk.vbases[ACD_BASE] = vbase;
 		perfcl_clk.acd_init = true;
 	} else {
@@ -2841,11 +2832,6 @@ static int debugfs_get_debug_reg(void *data, u64 *val)
 {
 	struct clk_osm *c = data;
 
-	if (!c->pbases[ACD_BASE]) {
-		pr_err("ACD base start not defined\n");
-		return -EINVAL;
-	}
-
 	if (c->acd_debugfs_addr >= ACD_MASTER_ONLY_REG_ADDR)
 		*val = readl_relaxed((char *)c->vbases[ACD_BASE] +
 				     c->acd_debugfs_addr);
@@ -2857,11 +2843,6 @@ static int debugfs_get_debug_reg(void *data, u64 *val)
 static int debugfs_set_debug_reg(void *data, u64 val)
 {
 	struct clk_osm *c = data;
-
-	if (!c->pbases[ACD_BASE]) {
-		pr_err("ACD base start not defined\n");
-		return -EINVAL;
-	}
 
 	if (c->acd_debugfs_addr >= ACD_MASTER_ONLY_REG_ADDR)
 		clk_osm_acd_master_write_reg(c, val, c->acd_debugfs_addr);
@@ -2880,27 +2861,13 @@ static int debugfs_get_debug_reg_addr(void *data, u64 *val)
 {
 	struct clk_osm *c = data;
 
-	if (!c->pbases[ACD_BASE]) {
-		pr_err("ACD base start not defined\n");
-		return -EINVAL;
-	}
-
 	*val = c->acd_debugfs_addr;
-
 	return 0;
 }
 
 static int debugfs_set_debug_reg_addr(void *data, u64 val)
 {
 	struct clk_osm *c = data;
-
-	if (!c->pbases[ACD_BASE]) {
-		pr_err("ACD base start not defined\n");
-		return -EINVAL;
-	}
-
-	if (val >= c->acd_debugfs_addr_size)
-		return -EINVAL;
 
 	c->acd_debugfs_addr = val;
 	return 0;

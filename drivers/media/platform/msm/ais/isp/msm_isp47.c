@@ -699,12 +699,6 @@ void msm_vfe47_reg_update(struct vfe_device *vfe_dev,
 		vfe_dev->reg_update_requested;
 	if ((vfe_dev->is_split && vfe_dev->pdev->id == ISP_VFE1) &&
 		((frame_src == VFE_PIX_0) || (frame_src == VFE_SRC_MAX))) {
-		if (!vfe_dev->common_data->dual_vfe_res->vfe_base[ISP_VFE0]) {
-			pr_err("%s vfe_base for ISP_VFE0 is NULL\n", __func__);
-			spin_unlock_irqrestore(&vfe_dev->reg_update_lock,
-						flags);
-			return;
-		}
 		msm_camera_io_w_mb(update_mask,
 			vfe_dev->common_data->dual_vfe_res->
 			vfe_base[ISP_VFE0] + 0x4AC);
@@ -2543,7 +2537,8 @@ int msm_vfe47_get_regulators(struct vfe_device *vfe_dev)
 	int rc = 0;
 	int i;
 
-	vfe_dev->vfe_num_regulators = vfe_dev->hw_info->regulator_num;
+	vfe_dev->vfe_num_regulators =
+		sizeof(*vfe_dev->hw_info->regulator_names) / sizeof(char *);
 
 	vfe_dev->regulator_info = kzalloc(sizeof(struct msm_cam_regulator) *
 				vfe_dev->vfe_num_regulators, GFP_KERNEL);
@@ -2816,7 +2811,6 @@ struct msm_vfe_hardware_info vfe47_hw_info = {
 	.dmi_reg_offset = 0xC2C,
 	.axi_hw_info = &msm_vfe47_axi_hw_info,
 	.stats_hw_info = &msm_vfe47_stats_hw_info,
-	.regulator_num = 3,
 	.regulator_names = {"vdd", "camss-vdd", "mmagic-vdd"},
 };
 EXPORT_SYMBOL(vfe47_hw_info);

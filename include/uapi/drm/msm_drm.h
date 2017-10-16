@@ -84,21 +84,6 @@ struct drm_msm_ext_panel_hdr_metadata {
 };
 
 /**
- * HDR Control
- * This encapsulates the HDR metadata as well as a state control
- * for the HDR metadata as required by the HDMI spec to send the
- * relevant metadata depending on the state of the HDR playback.
- * hdr_state: Controls HDR state, takes values ENABLE(1)/DISABLE(0)
- * hdr_meta: Metadata sent by the userspace for the HDR clip
- */
-
-#define DRM_MSM_EXT_PANEL_HDR_CTRL
-struct drm_msm_ext_panel_hdr_ctrl {
-	__u8 hdr_state;                                 /* HDR state */
-	struct drm_msm_ext_panel_hdr_metadata hdr_meta; /* HDR metadata */
-};
-
-/**
  * HDR sink properties
  * These are defined as per EDID spec and shall be used by the userspace
  * to determine the HDR properties to be set to the sink.
@@ -234,7 +219,7 @@ struct drm_msm_gem_submit_cmd {
 	__u32 size;           /* in, cmdstream size */
 	__u32 pad;
 	__u32 nr_relocs;      /* in, number of submit_reloc's */
-	__u64 relocs;         /* in, ptr to array of submit_reloc's */
+	__u64 __user relocs;  /* in, ptr to array of submit_reloc's */
 };
 
 /* Each buffer referenced elsewhere in the cmdstream submit (ie. the
@@ -274,8 +259,8 @@ struct drm_msm_gem_submit {
 	__u32 fence;          /* out */
 	__u32 nr_bos;         /* in, number of submit_bo's */
 	__u32 nr_cmds;        /* in, number of submit_cmd's */
-	__u64 bos;     /* in, ptr to array of submit_bo's */
-	__u64 cmds;    /* in, ptr to array of submit_cmd's */
+	__u64 __user bos;     /* in, ptr to array of submit_bo's */
+	__u64 __user cmds;    /* in, ptr to array of submit_cmd's */
 	__s32 fence_fd;       /* gap for the fence_fd which is upstream */
 	__u32 queueid;         /* in, submitqueue id */
 };

@@ -67,6 +67,7 @@ void diag_cntl_channel_close(struct diagfwd_info *p_info)
 
 	driver->feature[peripheral].sent_feature_mask = 0;
 	driver->feature[peripheral].rcvd_feature_mask = 0;
+	flush_workqueue(driver->cntl_wq);
 	reg_dirty |= PERIPHERAL_MASK(peripheral);
 	diag_cmd_remove_reg_by_proc(peripheral);
 	driver->feature[peripheral].stm_support = DISABLE_STM;
@@ -1118,18 +1119,6 @@ void diag_map_pd_to_diagid(uint8_t pd, uint8_t *diag_id, int *peripheral)
 	case PERIPHERAL_LPASS:
 		*diag_id = DIAG_ID_LPASS;
 		*peripheral = PERIPHERAL_LPASS;
-		break;
-	case PERIPHERAL_WCNSS:
-		*diag_id = 0;
-		*peripheral = PERIPHERAL_WCNSS;
-		break;
-	case PERIPHERAL_SENSORS:
-		*diag_id = 0;
-		*peripheral = PERIPHERAL_SENSORS;
-		break;
-	case PERIPHERAL_WDSP:
-		*diag_id = 0;
-		*peripheral = PERIPHERAL_WDSP;
 		break;
 	case PERIPHERAL_CDSP:
 		*diag_id = DIAG_ID_CDSP;

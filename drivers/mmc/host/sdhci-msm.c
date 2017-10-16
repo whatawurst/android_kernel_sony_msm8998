@@ -14,6 +14,11 @@
  * GNU General Public License for more details.
  *
  */
+/*
+ * NOTE: This file has been modified by Sony Mobile Communications Inc.
+ * Modifications are Copyright (c) 2016 Sony Mobile Communications Inc,
+ * and licensed under the license of the file.
+ */
 
 #include <linux/module.h>
 #include <linux/mmc/host.h>
@@ -142,7 +147,6 @@
 #define CORE_START_CDC_TRAFFIC		(1 << 6)
 
 #define CORE_PWRSAVE_DLL	(1 << 3)
-#define CORE_FIFO_ALT_EN	(1 << 10)
 #define CORE_CMDEN_HS400_INPUT_MASK_CNT (1 << 13)
 
 #define CORE_DDR_CAL_EN		(1 << 0)
@@ -1140,7 +1144,6 @@ int sdhci_msm_execute_tuning(struct sdhci_host *host, u32 opcode)
 	bool drv_type_changed = false;
 	struct mmc_card *card = host->mmc->card;
 	int sts_retry;
-	u8 last_good_phase = 0;
 
 	/*
 	 * Tuning is required for SDR104, HS200 and HS400 cards and
@@ -1226,22 +1229,6 @@ retry:
 		mmc_wait_for_req(mmc, &mrq);
 
 		if (card && (cmd.error || data.error)) {
-			/*
-			 * Set the dll to last known good phase while sending
-			 * status command to ensure that status command won't
-			 * fail due to bad phase.
-			 */
-			if (tuned_phase_cnt)
-				last_good_phase =
-					tuned_phases[tuned_phase_cnt-1];
-			else if (msm_host->saved_tuning_phase !=
-					INVALID_TUNING_PHASE)
-				last_good_phase = msm_host->saved_tuning_phase;
-
-			rc = msm_config_cm_dll_phase(host, last_good_phase);
-			if (rc)
-				goto kfree;
-
 			sts_cmd.opcode = MMC_SEND_STATUS;
 			sts_cmd.arg = card->rca << 16;
 			sts_cmd.flags = MMC_RSP_R1 | MMC_CMD_AC;
@@ -1843,6 +1830,12 @@ struct sdhci_msm_pltfm_data *sdhci_msm_populate_pdata(struct device *dev,
 	pdata->status_gpio = of_get_named_gpio_flags(np, "cd-gpios", 0, &flags);
 	if (gpio_is_valid(pdata->status_gpio) && !(flags & OF_GPIO_ACTIVE_LOW))
 		pdata->caps2 |= MMC_CAP2_CD_ACTIVE_HIGH;
+
+	pdata->uim2_gpio = of_get_named_gpio(np, "uim2-gpios", 0);
+	if (!gpio_is_valid(pdata->uim2_gpio)) {
+		pr_err("## %s: gpio_is_valid(pdata->uim2_gpio)=%d: failure\n",
+			mmc_hostname(msm_host->mmc), pdata->uim2_gpio);
+	}
 
 	of_property_read_u32(np, "qcom,bus-width", &bus_width);
 	if (bus_width == 8)
@@ -4155,7 +4148,7 @@ static void sdhci_set_default_hw_caps(struct sdhci_msm_host *msm_host,
 	 * starts coming.
 	 */
 	if ((major == 1) && ((minor == 0x42) || (minor == 0x46) ||
-				(minor == 0x49) || (minor >= 0x6b)))
+				(minor == 0x49)))
 		msm_host->use_14lpp_dll = true;
 
 	/* Fake 3.0V support for SDIO devices which requires such voltage */
@@ -4180,10 +4173,8 @@ static void sdhci_set_default_hw_caps(struct sdhci_msm_host *msm_host,
 	/* keep track of the value in SDHCI_CAPABILITIES */
 	msm_host->caps_0 = caps;
 
-	if ((major == 1) && (minor >= 0x6b)) {
+	if ((major == 1) && (minor >= 0x6b))
 		msm_host->ice_hci_support = true;
-		host->cdr_support = true;
-	}
 }
 
 #ifdef CONFIG_MMC_CQ_HCI
@@ -4479,14 +4470,6 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 	writel_relaxed(CORE_VENDOR_SPEC_POR_VAL,
 	host->ioaddr + msm_host_offset->CORE_VENDOR_SPEC);
 
-	/*
-	 * Ensure SDHCI FIFO is enabled by disabling alternative FIFO
-	 */
-	writel_relaxed((readl_relaxed(host->ioaddr +
-			msm_host_offset->CORE_VENDOR_SPEC3) &
-			~CORE_FIFO_ALT_EN), host->ioaddr +
-			msm_host_offset->CORE_VENDOR_SPEC3);
-
 	if (!msm_host->mci_removed) {
 		/* Set HC_MODE_EN bit in HC_MODE register */
 		writel_relaxed(HC_MODE_EN, (msm_host->core_mem + CORE_HC_MODE));
@@ -4658,6 +4641,13 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 		}
 	}
 
+	if (gpio_is_valid(msm_host->pdata->uim2_gpio)) {
+		mmc_gpio_init_uim2(msm_host->mmc, msm_host->pdata->uim2_gpio);
+	} else {
+		pr_err("## %s: can't set uim2_gpio: %d\n", mmc_hostname(host->mmc),
+			msm_host->pdata->uim2_gpio);
+	}
+
 	if ((sdhci_readl(host, SDHCI_CAPABILITIES) & SDHCI_CAN_64BIT) &&
 		(dma_supported(mmc_dev(host->mmc), DMA_BIT_MASK(64)))) {
 		host->dma_mask = DMA_BIT_MASK(64);
@@ -4741,9 +4731,6 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 		       mmc_hostname(host->mmc), __func__, ret);
 		device_remove_file(&pdev->dev, &msm_host->auto_cmd21_attr);
 	}
-	if (sdhci_msm_is_bootdevice(&pdev->dev))
-		mmc_flush_detect_work(host->mmc);
-
 	/* Successful initialization */
 	goto out;
 
@@ -5021,7 +5008,7 @@ static int sdhci_msm_suspend_noirq(struct device *dev)
 }
 
 static const struct dev_pm_ops sdhci_msm_pmops = {
-	SET_LATE_SYSTEM_SLEEP_PM_OPS(sdhci_msm_suspend, sdhci_msm_resume)
+	SET_SYSTEM_SLEEP_PM_OPS(sdhci_msm_suspend, sdhci_msm_resume)
 	SET_RUNTIME_PM_OPS(sdhci_msm_runtime_suspend, sdhci_msm_runtime_resume,
 			   NULL)
 	.suspend_noirq = sdhci_msm_suspend_noirq,
