@@ -1,3 +1,5 @@
+ccflags-y := -I$(src)
+
 obj-$(CONFIG_IPA3) += ipahal/
 
 obj-$(CONFIG_IPA3) += ipat.o

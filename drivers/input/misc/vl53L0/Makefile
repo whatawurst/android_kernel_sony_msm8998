@@ -6,6 +6,7 @@
 #FEATURE_USE_CCI := false
 FEATURE_USE_CCI := true
 
+ccflags-y	+= -Idrivers/input/misc/vl53L0
 ifeq ($(FEATURE_USE_CCI), true)
 ccflags-y	+= -Idrivers/input/misc/vl53L0/inc -DCAMERA_CCI
 else

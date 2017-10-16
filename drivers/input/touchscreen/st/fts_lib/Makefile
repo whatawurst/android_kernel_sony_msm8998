@@ -1,6 +1,7 @@
 #
 # Makefile for the FTS touchscreen driver.
 #
+ccflags-y := -I$(src)
 
 obj-$(CONFIG_TOUCHSCREEN_ST_I2C) += ftsCompensation.o \
 	ftsCrossCompile.o ftsError.o ftsFrame.o ftsIO.o ftsTest.o \
