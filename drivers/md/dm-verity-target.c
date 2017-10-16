@@ -202,6 +202,7 @@ static void verity_hash_at_level(struct dm_verity *v, sector_t block, int level,
 		*offset = idx << (v->hash_dev_block_bits - v->hash_per_block_bits);
 }
 
+#ifdef CONFIG_RAMDUMP_TAGS
 static void add_verity_block_tag(unsigned long long blk)
 {
 	char verity_blk[64];
@@ -211,6 +212,7 @@ static void add_verity_block_tag(unsigned long long blk)
 
 	rdtags_add_tag("rdtag_verity_block_nr", verity_blk, count);
 }
+#endif
 
 /*
  * Handle verification errors.
