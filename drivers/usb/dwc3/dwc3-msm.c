@@ -2631,7 +2631,6 @@ static DEVICE_ATTR(id_polling_up_period, S_IRUGO | S_IWUSR,
 						id_polling_up_period_show,
 						id_polling_up_period_store);
 
-#ifdef CONFIG_USB_DWC3_MSM_ID_POLL
 static void dwc3_id_poll_update(struct dwc3_msm *mdwc)
 {
 	if (!mdwc->otg_present && mdwc->lcd_blanked) {
@@ -2643,7 +2642,6 @@ static void dwc3_id_poll_update(struct dwc3_msm *mdwc)
 									0);
 	}
 }
-#endif
 
 #ifdef CONFIG_FB
 static int fb_notifier_callback(struct notifier_block *self,
@@ -2668,9 +2666,7 @@ static int fb_notifier_callback(struct notifier_block *self,
 
 	spin_lock_irqsave(&mdwc->id_polling_lock, flags);
 	mdwc->lcd_blanked = blanked;
-#ifdef CONFIG_USB_DWC3_MSM_ID_POLL
 	dwc3_id_poll_update(mdwc);
-#endif
 	spin_unlock_irqrestore(&mdwc->id_polling_lock, flags);
 
 	return 0;
