@@ -547,7 +547,7 @@
 
 #include "msm8996-sde-display.dtsi"
 
-&sde_kms {
+&mdss_mdp {
 	qcom,mdss-pref-prim-intf = "dsi";
 	qcom,sde-plane-id-map {
 		qcom,sde-plane-id@0 {
@@ -869,9 +869,6 @@
 
 		qcom,ntn-rst-delay-msec = <100>;
 		qcom,ntn-rc-num = <1>;
-		qcom,ntn-bus-num = <1>;
-		qcom,ntn-mdio-bus-id = <1>;
-		qcom,ntn-phy-addr = <7>;
 
 		qcom,msm-bus,name = "ntn";
 		qcom,msm-bus,num-cases = <2>;
@@ -1241,7 +1238,7 @@
 		qcom,vin-sel = <2>; /* 1.8 */
 		qcom,out-strength = <1>;
 		qcom,src-sel = <0>; /* GPIO */
-		qcom,master-en = <1>; /* Enable GPIO */
+		qcom,master-en = <0>; /* Disable GPIO */
 		status = "okay";
 	};
 

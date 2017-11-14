@@ -9,6 +9,11 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
+/*
+ * NOTE: This file has been modified by Sony Mobile Communications Inc.
+ * Modifications are Copyright (c) 2016 Sony Mobile Communications Inc,
+ * and licensed under the license of the file.
+ */
 #ifndef _MSM_PCM_ROUTING_H
 #define _MSM_PCM_ROUTING_H
 #include <sound/apr_audio-v2.h>
@@ -193,11 +198,6 @@ enum {
 	MSM_FRONTEND_DAI_MULTIMEDIA18,
 	MSM_FRONTEND_DAI_MULTIMEDIA19,
 	MSM_FRONTEND_DAI_MULTIMEDIA20,
-	MSM_FRONTEND_DAI_MULTIMEDIA21,
-	MSM_FRONTEND_DAI_MULTIMEDIA22,
-	MSM_FRONTEND_DAI_MULTIMEDIA23,
-	MSM_FRONTEND_DAI_MULTIMEDIA24,
-	MSM_FRONTEND_DAI_MULTIMEDIA25,
 	MSM_FRONTEND_DAI_CS_VOICE,
 	MSM_FRONTEND_DAI_VOIP,
 	MSM_FRONTEND_DAI_AFE_RX,
@@ -223,8 +223,8 @@ enum {
 	MSM_FRONTEND_DAI_MAX,
 };
 
-#define MSM_FRONTEND_DAI_MM_SIZE (MSM_FRONTEND_DAI_MULTIMEDIA25 + 1)
-#define MSM_FRONTEND_DAI_MM_MAX_ID MSM_FRONTEND_DAI_MULTIMEDIA25
+#define MSM_FRONTEND_DAI_MM_SIZE (MSM_FRONTEND_DAI_MULTIMEDIA20 + 1)
+#define MSM_FRONTEND_DAI_MM_MAX_ID MSM_FRONTEND_DAI_MULTIMEDIA20
 
 enum {
 	MSM_BACKEND_DAI_PRI_I2S_RX = 0,
@@ -387,6 +387,13 @@ enum {
 	EXT_EC_REF_SLIM_1_TX,
 };
 
+enum {
+	SONY_CUSTOM_STEREO_NORMAL = 0,
+	SONY_CUSTOM_STEREO_MIX,
+	SONY_CUSTOM_STEREO_SWAP,
+	SONY_CUSTOM_STEREO_MAX,
+};
+
 #define INVALID_SESSION -1
 #define SESSION_TYPE_RX 0
 #define SESSION_TYPE_TX 1
@@ -488,6 +495,4 @@ int msm_pcm_routing_reg_stream_app_type_cfg(
 int msm_pcm_routing_get_stream_app_type_cfg(
 	int fedai_id, int session_type, int *be_id,
 	struct msm_pcm_stream_app_type_cfg *cfg_data);
-int msm_routing_set_downmix_control_data(int be_id, int session_id,
-				 struct asm_stream_pan_ctrl_params *pan_param);
 #endif /*_MSM_PCM_H*/

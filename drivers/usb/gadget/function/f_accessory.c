@@ -14,6 +14,11 @@
  * GNU General Public License for more details.
  *
  */
+/*
+ * NOTE: This file has been modified by Sony Mobile Communications Inc.
+ * Modifications are Copyright (c) 2017 Sony Mobile Communications Inc,
+ * and licensed under the license of the file.
+ */
 
 /* #define DEBUG */
 /* #define VERBOSE_DEBUG */
@@ -372,7 +377,7 @@ static void acc_complete_set_string(struct usb_ep *ep, struct usb_request *req)
 		string_dest = dev->serial;
 		break;
 	}
-	if (string_dest) {
+	if ((string_dest) && (length != 0)) {
 		unsigned long flags;
 
 		if (length >= ACC_STRING_SIZE)
@@ -694,6 +699,7 @@ static ssize_t acc_write(struct file *fp, const char __user *buf,
 	ssize_t r = count;
 	unsigned xfer;
 	int ret;
+	int sendZLP = 0;
 
 	pr_debug("acc_write(%zu)\n", count);
 
@@ -702,7 +708,14 @@ static ssize_t acc_write(struct file *fp, const char __user *buf,
 		return -ENODEV;
 	}
 
-	while (count > 0) {
+	if ((count & (dev->ep_in->maxpacket - 1)) == 0)
+		sendZLP = 1;
+
+	while ((count > 0) || (sendZLP == 1)) {
+		/* exit after sending ZLP */
+		if (count == 0)
+			sendZLP = 0;
+
 		if (!dev->online) {
 			pr_debug("acc_write dev->error\n");
 			r = -EIO;
@@ -727,8 +740,9 @@ static ssize_t acc_write(struct file *fp, const char __user *buf,
 			/*
 			 * If the data length is a multple of the
 			 * maxpacket size then send a zero length packet(ZLP).
+			 *
+			 * req->zero = ((xfer % dev->ep_in->maxpacket) == 0);
 			 */
-			req->zero = ((xfer % dev->ep_in->maxpacket) == 0);
 		}
 		if (copy_from_user(req->buf, buf, xfer)) {
 			r = -EFAULT;

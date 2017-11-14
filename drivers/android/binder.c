@@ -14,6 +14,11 @@
  * GNU General Public License for more details.
  *
  */
+/*
+ * NOTE: This file has been modified by Sony Mobile Communications Inc.
+ * Modifications are Copyright (c) 2017 Sony Mobile Communications Inc,
+ * and licensed under the license of the file.
+ */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
@@ -469,12 +474,18 @@ static long task_close_fd(struct binder_proc *proc, unsigned int fd)
 	return retval;
 }
 
-static inline void binder_lock(struct binder_context *context, const char *tag)
+static inline int binder_lock(struct binder_context *context, const char *tag)
 {
+	int err = 0;
 	trace_binder_lock(tag);
-	mutex_lock(&context->binder_main_lock);
+	err = mutex_lock_killable(&context->binder_main_lock);
+	if (err) {
+		pr_err("Unable to lock binder_main_lock, returns error =%d\n", err);
+		return err;
+	}
 	preempt_disable();
 	trace_binder_locked(tag);
+	return err;
 }
 
 static inline void binder_unlock(struct binder_context *context,
@@ -2814,7 +2825,8 @@ retry:
 			ret = wait_event_freezable(thread->wait, binder_has_thread_work(thread));
 	}
 
-	binder_lock(proc->context, __func__);
+	if (binder_lock(proc->context, __func__))
+		return -EINTR;
 
 	if (wait_for_proc_work)
 		proc->ready_threads--;
@@ -3200,7 +3212,8 @@ static unsigned int binder_poll(struct file *filp,
 	struct binder_thread *thread = NULL;
 	int wait_for_proc_work;
 
-	binder_lock(proc->context, __func__);
+	if (binder_lock(proc->context, __func__))
+		return 0;
 
 	thread = binder_get_thread(proc);
 
@@ -3271,6 +3284,8 @@ static int binder_ioctl_write_read(struct file *filp,
 		if (!list_empty(&proc->todo))
 			wake_up_interruptible(&proc->wait);
 		if (ret < 0) {
+			if (ret == -EINTR)
+				goto out;
 			if (copy_to_user_preempt_disabled(ubuf, &bwr, sizeof(bwr)))
 				ret = -EFAULT;
 			goto out;
@@ -3348,7 +3363,10 @@ static long binder_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	if (ret)
 		goto err_unlocked;
 
-	binder_lock(context, __func__);
+	if (binder_lock(context, __func__)) {
+		ret = -EINTR;
+		goto err_unlocked;
+	}
 	thread = binder_get_thread(proc);
 	if (thread == NULL) {
 		ret = -ENOMEM;
@@ -3358,8 +3376,11 @@ static long binder_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	switch (cmd) {
 	case BINDER_WRITE_READ:
 		ret = binder_ioctl_write_read(filp, cmd, arg, thread);
-		if (ret)
+		if (ret) {
+			if (ret == -EINTR)
+				goto err_unlocked;
 			goto err;
+		}
 		break;
 	case BINDER_SET_MAX_THREADS:
 		if (copy_from_user_preempt_disabled(&proc->max_threads, ubuf, sizeof(proc->max_threads))) {
@@ -3568,7 +3589,10 @@ static int binder_open(struct inode *nodp, struct file *filp)
 				  miscdev);
 	proc->context = &binder_dev->context;
 
-	binder_lock(proc->context, __func__);
+	if (binder_lock(proc->context, __func__)) {
+		kfree(proc);
+		return -EINTR;
+	}
 
 	binder_stats_created(BINDER_STAT_PROC);
 	hlist_add_head(&proc->proc_node, &proc->context->binder_procs);
@@ -4204,7 +4228,8 @@ static int binder_state_show(struct seq_file *m, void *unused)
 	hlist_for_each_entry(device, &binder_devices, hlist) {
 		context = &device->context;
 		if (do_lock)
-			binder_lock(context, __func__);
+			if (binder_lock(context, __func__))
+				return 0;
 		if (!wrote_dead_nodes_header &&
 		    !hlist_empty(&context->binder_dead_nodes)) {
 			seq_puts(m, "dead nodes:\n");
@@ -4221,7 +4246,8 @@ static int binder_state_show(struct seq_file *m, void *unused)
 	hlist_for_each_entry(device, &binder_devices, hlist) {
 		context = &device->context;
 		if (do_lock)
-			binder_lock(context, __func__);
+			if (binder_lock(context, __func__))
+				return 0;
 
 		hlist_for_each_entry(proc, &context->binder_procs, proc_node)
 			print_binder_proc(m, proc, 1);
@@ -4244,7 +4270,8 @@ static int binder_stats_show(struct seq_file *m, void *unused)
 	hlist_for_each_entry(device, &binder_devices, hlist) {
 		context = &device->context;
 		if (do_lock)
-			binder_lock(context, __func__);
+			if (binder_lock(context, __func__))
+				return 0;
 
 		add_binder_stats(&context->binder_stats, &total_binder_stats);
 
@@ -4258,7 +4285,8 @@ static int binder_stats_show(struct seq_file *m, void *unused)
 	hlist_for_each_entry(device, &binder_devices, hlist) {
 		context = &device->context;
 		if (do_lock)
-			binder_lock(context, __func__);
+			if (binder_lock(context, __func__))
+				return 0;
 
 		hlist_for_each_entry(proc, &context->binder_procs, proc_node)
 			print_binder_proc_stats(m, proc);
@@ -4279,7 +4307,8 @@ static int binder_transactions_show(struct seq_file *m, void *unused)
 	hlist_for_each_entry(device, &binder_devices, hlist) {
 		context = &device->context;
 		if (do_lock)
-			binder_lock(context, __func__);
+			if (binder_lock(context, __func__))
+				return 0;
 
 		hlist_for_each_entry(proc, &context->binder_procs, proc_node)
 			print_binder_proc(m, proc, 0);
@@ -4300,7 +4329,8 @@ static int binder_proc_show(struct seq_file *m, void *unused)
 	hlist_for_each_entry(device, &binder_devices, hlist) {
 		context = &device->context;
 		if (do_lock)
-			binder_lock(context, __func__);
+			if (binder_lock(context, __func__))
+				return 0;
 
 		hlist_for_each_entry(itr, &context->binder_procs, proc_node) {
 			if (itr->pid == pid) {

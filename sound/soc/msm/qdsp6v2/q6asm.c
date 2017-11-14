@@ -12,6 +12,11 @@
  * GNU General Public License for more details.
  *
  */
+/*
+ * NOTE: This file has been modified by Sony Mobile Communications Inc.
+ * Modifications are Copyright (c) 2014 Sony Mobile Communications Inc,
+ * and licensed under the license of the file.
+ */
 #include <linux/fs.h>
 #include <linux/mutex.h>
 #include <linux/wait.h>
@@ -41,10 +46,13 @@
 #include <sound/adsp_err.h>
 #include <sound/compress_params.h>
 
+#include "sound/sony-hweffect.h"
+#include "sound/sony-hweffect-params.h"
+
 #define TRUE        0x01
 #define FALSE       0x00
 #define SESSION_MAX 8
-#define ASM_MAX_CHANNELS 8
+
 enum {
 	ASM_TOPOLOGY_CAL = 0,
 	ASM_CUSTOM_TOP_CAL,
@@ -82,6 +90,17 @@ enum {
 
 #define ASM_SET_BIT(n, x)	(n |= 1 << x)
 #define ASM_TEST_BIT(n, x)	((n >> x) & 1)
+
+#ifndef MIN
+#define MIN(x, y) (((x) < (y)) ? (x) : (y))
+#endif
+#define ONCE_PARAM_SIZE 460
+
+struct param_divide {
+	uint8_t divide_num;
+	uint8_t no;
+	uint16_t offset;
+};
 
 /* TODO, combine them together */
 static DEFINE_MUTEX(session_lock);
@@ -513,6 +532,136 @@ static void config_debug_fs_init(void)
 	return;
 }
 #endif
+
+/* SOMC effect control start */
+
+int sony_hweffect_send_tuning_params(unsigned int effect_id, void *client)
+{
+	int rc = 0x00;
+	char *param, *tuning_param_s, *tuning_param_d;
+	uint32_t module_id, param_id;
+	uint32_t param_length;
+	struct asm_stream_param_data_v2 *param_data;
+	struct param_divide *divide;
+	uint32_t i, num, len, ret;
+
+	pr_debug("%s: effect_id=%u\n", __func__, effect_id);
+	if (client == NULL) {
+		pr_err("%s: audio client is NULL\n", __func__);
+		return -EINVAL;
+	}
+
+	param = kzalloc(MAX_INBAND_PARAM_SZ, GFP_KERNEL);
+	if (!param) {
+		pr_err("%s, param memory alloc failed\n", __func__);
+		return -ENOMEM;
+	}
+
+	tuning_param_d = param + sizeof(struct asm_stream_param_data_v2);
+
+	switch (effect_id) {
+	case SFORCE_PARAM:
+		tuning_param_s = sony_hweffect_params_getparam(SFORCE_PARAM);
+		if (tuning_param_s == NULL) {
+			pr_err("%s: sforce param is NULL\n", __func__);
+			rc = -EINVAL;
+			goto invalid_config;
+		}
+
+		module_id = ASM_MODULE_ID_SONYBUNDLE;
+		param_id = PARAM_ID_SB_SFORCE_TUNING;
+		param_length = sizeof(struct s_force_tuning_params);
+		pr_debug("%s: SFORCE_PARAM\n module_id=%u, param_id=%u, param_length=%u",
+			__func__, module_id, param_id, param_length);
+		break;
+
+	case CLEARPHASE_HP_PARAM:
+		tuning_param_s = sony_hweffect_params_getparam(
+							CLEARPHASE_HP_PARAM);
+		if (tuning_param_s == NULL) {
+			pr_err("%s: clearphase_hp param is NULL\n", __func__);
+			rc = -EINVAL;
+			goto invalid_config;
+		}
+
+		module_id = ASM_MODULE_ID_SONYBUNDLE;
+		param_id = PARAM_ID_SB_CLEARPHASE_HP_TUNING;
+		param_length = sizeof(struct clearphase_hp_tuning_params);
+		pr_debug("%s: CLEARPHASE_HP_PARAM\n module_id=%u, param_id=%u, param_length=%u",
+			__func__, module_id, param_id, param_length);
+		break;
+
+	case CLEARPHASE_SP_PARAM:
+		tuning_param_s = sony_hweffect_params_getparam(
+							CLEARPHASE_SP_PARAM);
+		if (tuning_param_s == NULL) {
+			pr_err("%s: clearphase_sp param is NULL\n", __func__);
+			rc = -EINVAL;
+			goto invalid_config;
+		}
+
+		module_id = ASM_MODULE_ID_SONYBUNDLE;
+		param_id = PARAM_ID_SB_CLEARPHASE_SP_TUNING;
+		param_length = sizeof(struct clearphase_sp_tuning_params);
+		pr_debug("%s: CLEARPHASE_SP_PARAM\n module_id=%u, param_id=%u, param_length=%u",
+			__func__, module_id, param_id, param_length);
+		break;
+
+	case XLOUD_PARAM:
+		tuning_param_s = sony_hweffect_params_getparam(XLOUD_PARAM);
+		if (tuning_param_s == NULL) {
+			pr_err("%s: xloud param is NULL\n", __func__);
+			rc = -EINVAL;
+			goto invalid_config;
+		}
+
+		module_id = ASM_MODULE_ID_SONYBUNDLE;
+		param_id = PARAM_ID_SB_XLOUD_TUNING;
+		param_length = sizeof(struct xloud_tuning_params);
+		pr_debug("%s: XLOUD_PARAM\n module_id=%u, param_id=%u, param_length=%u",
+			__func__, module_id, param_id, param_length);
+		break;
+
+	default:
+		pr_err("%s: Invalid effect id(%u)\n", __func__, effect_id);
+		rc = -EINVAL;
+		goto invalid_config;
+	};
+
+	num = (param_length + ONCE_PARAM_SIZE - 1) / ONCE_PARAM_SIZE;
+	for (i = 0; i < num; i++) {
+		len = MIN(ONCE_PARAM_SIZE, param_length
+				- (i * ONCE_PARAM_SIZE));
+		divide = (struct param_divide *)tuning_param_d;
+		divide->divide_num = (uint8_t)num;
+		divide->no = (uint8_t)i;
+		divide->offset = (uint16_t)(i * ONCE_PARAM_SIZE);
+		memcpy(tuning_param_d + sizeof(struct param_divide),
+				tuning_param_s + divide->offset, len);
+		len += sizeof(struct param_divide);
+		param_data = (struct asm_stream_param_data_v2 *)param;
+		param_data->module_id = module_id;
+		param_data->param_id = param_id;
+		param_data->param_size = (uint16_t)len;
+		param_data->reserved = 0;
+		len += sizeof(struct asm_stream_param_data_v2);
+
+		ret = q6asm_send_audio_effects_params(
+				(struct audio_client *)client,
+				(char *)param, len);
+		if (ret < 0) {
+			pr_err("%s: set-param failed ret[%d]\n", __func__, ret);
+			rc = -EINVAL;
+			goto invalid_config;
+		}
+	}
+
+invalid_config:
+	kfree(param);
+	return rc;
+}
+
+/* SOMC effect control end */
 
 int q6asm_mmap_apr_dereg(void)
 {
@@ -7417,296 +7566,6 @@ int q6asm_set_softvolume_v2(struct audio_client *ac,
 			    int instance)
 {
 	return __q6asm_set_softvolume(ac, softvol_param, instance);
-}
-
-int q6asm_set_vol_ctrl_gain_pair(struct audio_client *ac,
-				 struct asm_stream_pan_ctrl_params *pan_param)
-{
-	int sz = 0;
-	int rc = 0;
-	int i = 0;
-	int32_t ch = 0;
-	struct apr_hdr hdr;
-	struct audproc_volume_ctrl_channel_type_gain_pair
-		gain_data[ASM_MAX_CHANNELS];
-	struct asm_stream_cmd_set_pp_params_v2 payload_params;
-	struct asm_stream_param_data_v2 data;
-	uint16_t *asm_params = NULL;
-
-	if (ac == NULL) {
-		pr_err("%s: ac is NULL\n", __func__);
-		rc = -EINVAL;
-		goto fail;
-	}
-	if (ac->apr == NULL) {
-		dev_err(ac->dev, "%s: ac apr handle NULL\n", __func__);
-		rc = -EINVAL;
-		goto fail;
-	}
-
-	sz = sizeof(struct apr_hdr) +
-	     sizeof(struct asm_stream_cmd_set_pp_params_v2) +
-	     sizeof(struct asm_stream_param_data_v2) +
-	     sizeof(uint32_t) +
-	     (sizeof(struct audproc_volume_ctrl_channel_type_gain_pair) *
-		     ASM_MAX_CHANNELS);
-	asm_params = kzalloc(sz, GFP_KERNEL);
-	if (!asm_params) {
-		rc = -ENOMEM;
-		goto fail;
-	}
-
-	q6asm_add_hdr_async(ac, &hdr, sz, TRUE);
-	atomic_set(&ac->cmd_state_pp, -1);
-
-	hdr.opcode = ASM_STREAM_CMD_SET_PP_PARAMS_V2;
-	memcpy(((u8 *)asm_params), &hdr, sizeof(struct apr_hdr));
-
-	payload_params.data_payload_addr_lsw = 0;
-	payload_params.data_payload_addr_msw = 0;
-	payload_params.mem_map_handle = 0;
-	payload_params.data_payload_size =
-		sizeof(struct asm_stream_param_data_v2) +
-		sizeof(uint32_t) +
-		(sizeof(struct audproc_volume_ctrl_channel_type_gain_pair) *
-		ASM_MAX_CHANNELS);
-	memcpy(((u8 *)asm_params + sizeof(struct apr_hdr)),
-		&payload_params,
-		sizeof(struct asm_stream_cmd_set_pp_params_v2));
-
-	data.module_id = AUDPROC_MODULE_ID_VOL_CTRL;
-	data.param_id = AUDPROC_PARAM_ID_MULTICHANNEL_GAIN;
-	data.param_size = sizeof(uint32_t) +
-		(sizeof(struct audproc_volume_ctrl_channel_type_gain_pair) *
-		ASM_MAX_CHANNELS);
-	data.reserved = 0;
-	memcpy(((u8 *)asm_params + sizeof(struct apr_hdr) +
-		sizeof(struct asm_stream_cmd_set_pp_params_v2)),
-		&data, sizeof(struct asm_stream_param_data_v2));
-
-	ch = pan_param->num_output_channels;
-	memcpy(((u8 *)asm_params + sizeof(struct apr_hdr) +
-		sizeof(struct asm_stream_cmd_set_pp_params_v2) +
-		sizeof(struct asm_stream_param_data_v2)),
-		&ch,
-		sizeof(uint32_t));
-
-	memset(gain_data, 0,
-		ASM_MAX_CHANNELS *
-		sizeof(struct audproc_volume_ctrl_channel_type_gain_pair));
-	for (i = 0; i < pan_param->num_output_channels; i++) {
-		gain_data[i].channel_type =
-		   pan_param->output_channel_map[i];
-		gain_data[i].gain = pan_param->gain[i];
-	}
-	memcpy(((u8 *)asm_params + sizeof(struct apr_hdr) +
-		sizeof(struct asm_stream_cmd_set_pp_params_v2) +
-		sizeof(struct asm_stream_param_data_v2) +
-		sizeof(uint32_t)),
-		gain_data,
-		ASM_MAX_CHANNELS *
-		sizeof(struct audproc_volume_ctrl_channel_type_gain_pair));
-
-	rc = apr_send_pkt(ac->apr, (uint32_t *) asm_params);
-	if (rc < 0) {
-		pr_err("%s: set-params send failed paramid[0x%x] rc %d\n",
-				__func__, data.param_id, rc);
-		goto done;
-	}
-
-	rc = wait_event_timeout(ac->cmd_wait,
-			(atomic_read(&ac->cmd_state_pp) >= 0), 5 * HZ);
-	if (!rc) {
-		pr_err("%s: timeout, set-params paramid[0x%x]\n", __func__,
-				data.param_id);
-		rc = -EINVAL;
-		goto done;
-	}
-	if (atomic_read(&ac->cmd_state_pp) > 0) {
-		pr_err("%s: DSP returned error[%d], set-params paramid[0x%x]\n",
-		       __func__, atomic_read(&ac->cmd_state_pp),
-		       data.param_id);
-		rc = -EINVAL;
-		goto done;
-	}
-	rc = 0;
-done:
-	kfree(asm_params);
-fail:
-	return rc;
-}
-
-int q6asm_set_mfc_panning_params(struct audio_client *ac,
-				 struct asm_stream_pan_ctrl_params *pan_param)
-{
-	int sz, rc, i;
-	struct audproc_mfc_output_media_fmt mfc_cfg;
-	struct apr_hdr hdr;
-	struct asm_stream_cmd_set_pp_params_v2 payload_params;
-	struct asm_stream_param_data_v2 data;
-	struct audproc_chmixer_param_coeff pan_cfg;
-	uint16_t variable_payload = 0;
-	uint16_t *asm_params = NULL;
-
-	sz = rc = i = 0;
-	if (ac == NULL) {
-		pr_err("%s: ac handle NULL\n", __func__);
-		rc = -EINVAL;
-		goto fail_cmd1;
-	}
-	if (ac->apr == NULL) {
-		pr_err("%s: ac apr handle NULL\n", __func__);
-		rc = -EINVAL;
-		goto fail_cmd1;
-	}
-
-	sz = sizeof(struct audproc_mfc_output_media_fmt);
-	q6asm_add_hdr_async(ac, &mfc_cfg.params.hdr, sz, TRUE);
-	atomic_set(&ac->cmd_state_pp, -1);
-	mfc_cfg.params.hdr.opcode = ASM_STREAM_CMD_SET_PP_PARAMS_V2;
-	mfc_cfg.params.payload_addr_lsw = 0;
-	mfc_cfg.params.payload_addr_msw = 0;
-	mfc_cfg.params.mem_map_handle = 0;
-	mfc_cfg.params.payload_size = sizeof(mfc_cfg) - sizeof(mfc_cfg.params);
-	mfc_cfg.data.module_id = AUDPROC_MODULE_ID_MFC;
-	mfc_cfg.data.param_id = AUDPROC_PARAM_ID_MFC_OUTPUT_MEDIA_FORMAT;
-	mfc_cfg.data.param_size = mfc_cfg.params.payload_size -
-		sizeof(mfc_cfg.data);
-	mfc_cfg.data.reserved = 0;
-	mfc_cfg.sampling_rate = 0;
-	mfc_cfg.bits_per_sample = 0;
-	mfc_cfg.num_channels = pan_param->num_output_channels;
-	for (i = 0; i < mfc_cfg.num_channels; i++)
-		mfc_cfg.channel_type[i] = pan_param->output_channel_map[i];
-
-	rc = apr_send_pkt(ac->apr, (uint32_t *) &mfc_cfg);
-	if (rc < 0) {
-		pr_err("%s: set-params send failed paramid[0x%x] rc %d\n",
-				__func__, mfc_cfg.data.param_id, rc);
-		rc = -EINVAL;
-		goto fail_cmd1;
-	}
-
-	rc = wait_event_timeout(ac->cmd_wait,
-			(atomic_read(&ac->cmd_state_pp) >= 0), 5*HZ);
-	if (!rc) {
-		pr_err("%s: timeout, set-params paramid[0x%x]\n", __func__,
-						mfc_cfg.data.param_id);
-		rc = -ETIMEDOUT;
-		goto fail_cmd1;
-	}
-	if (atomic_read(&ac->cmd_state_pp) > 0) {
-		pr_err("%s: DSP returned error[%s] set-params paramid[0x%x]\n",
-				__func__, adsp_err_get_err_str(
-				atomic_read(&ac->cmd_state_pp)),
-				mfc_cfg.data.param_id);
-		rc = adsp_err_get_lnx_err_code(
-				atomic_read(&ac->cmd_state_pp));
-		goto fail_cmd1;
-	}
-
-	variable_payload = pan_param->num_output_channels * sizeof(uint16_t)+
-			pan_param->num_input_channels * sizeof(uint16_t) +
-			pan_param->num_output_channels * sizeof(uint16_t) *
-			pan_param->num_input_channels * sizeof(uint16_t);
-	i = (variable_payload % sizeof(uint32_t));
-	variable_payload += (i == 0) ? 0 : sizeof(uint32_t) - i;
-	sz = sizeof(struct apr_hdr) +
-		sizeof(struct asm_stream_cmd_set_pp_params_v2) +
-		sizeof(struct asm_stream_param_data_v2) +
-		sizeof(struct audproc_chmixer_param_coeff) +
-		variable_payload;
-
-	asm_params = kzalloc(sz, GFP_KERNEL);
-	if (!asm_params) {
-		rc = -ENOMEM;
-		goto fail_cmd1;
-	}
-
-	q6asm_add_hdr_async(ac, &hdr, sz, TRUE);
-	atomic_set(&ac->cmd_state_pp, -1);
-	hdr.opcode = ASM_STREAM_CMD_SET_PP_PARAMS_V2;
-	memcpy(((u8 *)asm_params), &hdr, sizeof(struct apr_hdr));
-
-	payload_params.data_payload_addr_lsw = 0;
-	payload_params.data_payload_addr_msw = 0;
-	payload_params.mem_map_handle = 0;
-	payload_params.data_payload_size =
-		sizeof(struct audproc_chmixer_param_coeff) +
-		variable_payload + sizeof(struct asm_stream_param_data_v2);
-	memcpy(((u8 *)asm_params + sizeof(struct apr_hdr)),
-		&payload_params,
-		sizeof(struct asm_stream_cmd_set_pp_params_v2));
-
-	data.module_id = AUDPROC_MODULE_ID_MFC;
-	data.param_id = AUDPROC_CHMIXER_PARAM_ID_COEFF;
-	data.param_size = sizeof(struct audproc_chmixer_param_coeff) +
-				 variable_payload;
-	data.reserved = 0;
-	memcpy(((u8 *)asm_params + sizeof(struct apr_hdr) +
-		sizeof(struct asm_stream_cmd_set_pp_params_v2)),
-		&data, sizeof(struct asm_stream_param_data_v2));
-
-	pan_cfg.index = 0;
-	pan_cfg.num_output_channels = pan_param->num_output_channels;
-	pan_cfg.num_input_channels = pan_param->num_input_channels;
-	memcpy(((u8 *)asm_params + sizeof(struct apr_hdr) +
-		sizeof(struct asm_stream_cmd_set_pp_params_v2) +
-		sizeof(struct asm_stream_param_data_v2)),
-		&pan_cfg, sizeof(struct audproc_chmixer_param_coeff));
-	memcpy(((u8 *)asm_params + sizeof(struct apr_hdr) +
-		sizeof(struct asm_stream_cmd_set_pp_params_v2) +
-		sizeof(struct asm_stream_param_data_v2) +
-		sizeof(struct audproc_chmixer_param_coeff)),
-		pan_param->output_channel_map,
-		pan_param->num_output_channels * sizeof(uint16_t));
-	memcpy(((u8 *)asm_params + sizeof(struct apr_hdr) +
-		sizeof(struct asm_stream_cmd_set_pp_params_v2) +
-		sizeof(struct asm_stream_param_data_v2) +
-		sizeof(struct audproc_chmixer_param_coeff) +
-		pan_param->num_output_channels * sizeof(uint16_t)),
-		pan_param->input_channel_map,
-		pan_param->num_input_channels * sizeof(uint16_t));
-	memcpy(((u8 *)asm_params + sizeof(struct apr_hdr) +
-		sizeof(struct asm_stream_cmd_set_pp_params_v2) +
-		sizeof(struct asm_stream_param_data_v2) +
-		sizeof(struct audproc_chmixer_param_coeff) +
-		(pan_param->num_output_channels * sizeof(uint16_t)) +
-		(pan_param->num_input_channels * sizeof(uint16_t))),
-		pan_param->gain,
-		(pan_param->num_output_channels * sizeof(uint16_t)) *
-		(pan_param->num_input_channels * sizeof(uint16_t)));
-
-	rc = apr_send_pkt(ac->apr, (uint32_t *) asm_params);
-	if (rc < 0) {
-		pr_err("%s: set-params send failed paramid[0x%x] rc %d\n",
-				__func__, data.param_id, rc);
-		rc = -EINVAL;
-		goto fail_cmd2;
-	}
-
-	rc = wait_event_timeout(ac->cmd_wait,
-			(atomic_read(&ac->cmd_state_pp) >= 0), 5*HZ);
-	if (!rc) {
-		pr_err("%s: timeout, set-params paramid[0x%x]\n", __func__,
-						data.param_id);
-		rc = -ETIMEDOUT;
-		goto fail_cmd2;
-	}
-	if (atomic_read(&ac->cmd_state_pp) > 0) {
-		pr_err("%s: DSP returned error[%s] set-params paramid[0x%x]\n",
-				__func__, adsp_err_get_err_str(
-				atomic_read(&ac->cmd_state_pp)),
-				data.param_id);
-		rc = adsp_err_get_lnx_err_code(
-				atomic_read(&ac->cmd_state_pp));
-		goto fail_cmd2;
-	}
-	rc = 0;
-fail_cmd2:
-	kfree(asm_params);
-fail_cmd1:
-	return rc;
 }
 
 int q6asm_equalizer(struct audio_client *ac, void *eq_p)

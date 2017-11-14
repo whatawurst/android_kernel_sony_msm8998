@@ -9,6 +9,11 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
+/*
+ * NOTE: This file has been modified by Sony Mobile Communications Inc.
+ * Modifications are Copyright (c) 2016 Sony Mobile Communications Inc,
+ * and licensed under the license of the file.
+ */
 #include <linux/io.h>
 #include <media/v4l2-subdev.h>
 #include <asm/div64.h>
@@ -2616,7 +2621,6 @@ int msm_isp_axi_reset(struct vfe_device *vfe_dev,
 	struct msm_vfe_axi_shared_data *axi_data = &vfe_dev->axi_data;
 	uint32_t bufq_handle = 0, bufq_id = 0;
 	struct msm_isp_timestamp timestamp;
-	struct msm_vfe_frame_request_queue *queue_req;
 	unsigned long flags;
 	int vfe_idx;
 
@@ -2653,18 +2657,8 @@ int msm_isp_axi_reset(struct vfe_device *vfe_dev,
 					VFE_PING_FLAG);
 		msm_isp_cfg_stream_scratch(stream_info,
 					VFE_PONG_FLAG);
-		stream_info->undelivered_request_cnt = 0;
 		spin_unlock_irqrestore(&stream_info->lock,
 					flags);
-		while (!list_empty(&stream_info->request_q)) {
-			queue_req = list_first_entry_or_null(
-				&stream_info->request_q,
-				struct msm_vfe_frame_request_queue, list);
-			if (queue_req) {
-				queue_req->cmd_used = 0;
-				list_del(&queue_req->list);
-			}
-		}
 		for (bufq_id = 0; bufq_id < VFE_BUF_QUEUE_MAX;
 			bufq_id++) {
 			bufq_handle = stream_info->bufq_handle[bufq_id];
@@ -3304,6 +3298,10 @@ int msm_isp_cfg_axi_stream(struct vfe_device *vfe_dev, void *arg)
 
 		rc = msm_isp_start_axi_stream(
 			vfe_dev, stream_cfg_cmd);
+#if defined(CONFIG_SONY_CAM_V4L2)
+		pr_info("%s: msm_isp_start_axi_stream: rc %d\n",
+			__func__, rc);
+#endif
 	} else {
 		rc = msm_isp_stop_axi_stream(
 			vfe_dev, stream_cfg_cmd);
@@ -3326,8 +3324,13 @@ int msm_isp_cfg_axi_stream(struct vfe_device *vfe_dev, void *arg)
 	}
 
 	if (rc < 0)
+#if defined(CONFIG_SONY_CAM_V4L2)
+		pr_err("%s: start/stop %d stream failed: rc %d\n", __func__,
+			stream_cfg_cmd->cmd, rc);
+#else
 		pr_err("%s: start/stop %d stream failed\n", __func__,
 			stream_cfg_cmd->cmd);
+#endif
 	return rc;
 }
 

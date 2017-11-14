@@ -9,6 +9,11 @@
 * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 * GNU General Public License for more details.
 */
+/*
+ * NOTE: This file has been modified by Sony Mobile Communications Inc.
+ * Modifications are Copyright (c) 2014 Sony Mobile Communications Inc,
+ * and licensed under the license of the file.
+ */
 
 
 #ifndef _APR_AUDIO_V2_H_
@@ -625,29 +630,6 @@ struct audproc_softvolume_params {
  */
 #define AUDPROC_PARAM_ID_MFC_OUTPUT_MEDIA_FORMAT            0x00010913
 
-/* ID of the Channel Mixer module, which is used to configure
- * channel-mixer related parameters.
- * This module supports the AUDPROC_CHMIXER_PARAM_ID_COEFF parameter ID.
- */
-#define AUDPROC_MODULE_ID_CHMIXER                           0x00010341
-
-/* ID of the Coefficient parameter used by AUDPROC_MODULE_ID_CHMIXER to
- *configure the channel mixer weighting coefficients.
- */
-#define AUDPROC_CHMIXER_PARAM_ID_COEFF                      0x00010342
-
-/* Payload of the per-session, per-device parameter data of the
- *   #ADM_CMD_SET_PSPD_MTMX_STRTR_PARAMS_V5 command or
- *   #ADM_CMD_SET_PSPD_MTMX_STRTR_PARAMS_V6 command.
- * Immediately following this structure are param_size bytes of parameter
- *   data. The structure and size depend on the module_id/param_id pair.
- */
-struct adm_pspd_param_data_t {
-	uint32_t module_id;
-	uint32_t param_id;
-	uint16_t param_size;
-	uint16_t reserved;
-} __packed;
 
 struct audproc_mfc_output_media_fmt {
 	struct adm_cmd_set_pp_params_v5 params;
@@ -834,6 +816,7 @@ struct adm_session_copp_gain_v5 {
 
 /*  Payload of the #ADM_CMD_MATRIX_MUTE_V5 command*/
 struct adm_cmd_matrix_mute_v5 {
+	struct apr_hdr	hdr;
 	u32                  matrix_id;
 /* Specifies whether the matrix ID is Audio Rx (0) or Audio Tx (1).
  * Use the ADM_MATRIX_ID_AUDIO_RX or  ADM_MATRIX_ID_AUDIOX
@@ -3690,6 +3673,8 @@ struct afe_lpass_core_shared_clk_config_command {
 #define VPM_TX_DM_RFECNS_COPP_TOPOLOGY			0x00010F86
 #define ADM_CMD_COPP_OPEN_TOPOLOGY_ID_DTS_HPX		0x10015002
 #define ADM_CMD_COPP_OPEN_TOPOLOGY_ID_AUDIOSPHERE	0x10028000
+#define VOICE_TOPOLOGY_LVVEFQ_TX_SM			0x1000BFF0
+#define VOICE_TOPOLOGY_LVVEFQ_TX_DM			0x1000BFF1
 
 /* Memory map regions command payload used by the
  * #ASM_CMD_SHARED_MEM_MAP_REGIONS ,#ADM_CMD_SHARED_MEM_MAP_REGIONS
@@ -3923,14 +3908,6 @@ struct asm_softvolume_params {
 	u32 period;
 	u32 step;
 	u32 rampingcurve;
-} __packed;
-
-struct asm_stream_pan_ctrl_params {
-	uint16_t num_output_channels;
-	uint16_t num_input_channels;
-	uint16_t output_channel_map[8];
-	uint16_t input_channel_map[8];
-	uint16_t gain[64];
 } __packed;
 
 #define ASM_END_POINT_DEVICE_MATRIX     0
@@ -6992,6 +6969,12 @@ struct asm_stream_cmd_open_read_compressed {
 								0x11000000
 #define ADM_CMD_COPP_OPENOPOLOGY_ID_SPEAKER_MCH_PEAK_VOL \
 								0x0001031B
+#define ADM_CMD_COPP_OPENOPOLOGY_ID_SPEAKER_RX_MCH_IIR_COPP_MBDRC_V3 \
+								0x11000004
+#define ADM_CMD_COPP_OPENOPOLOGY_ID_SPEAKER_STEREO_AUDIO_COPP_SOMC_HP \
+								0x11000006
+#define ADM_CMD_COPP_OPENOPOLOGY_ID_SPEAKER_RX_MCH_FIR_IIR_COPP_MBDRC_V3 \
+								0x11000009
 #define ADM_CMD_COPP_OPENOPOLOGY_ID_MIC_MONO_AUDIO_COPP  0x00010315
 #define ADM_CMD_COPP_OPENOPOLOGY_ID_MIC_STEREO_AUDIO_COPP 0x00010316
 #define AUDPROC_COPPOPOLOGY_ID_MCHAN_IIR_AUDIO           0x00010715
@@ -7833,48 +7816,6 @@ struct asm_volume_ctrl_lr_chan_gain {
 	/*< Linear gain in Q13 format for the right channel.*/
 } __packed;
 
-struct audproc_chmixer_param_coeff {
-	uint32_t index;
-	uint16_t num_output_channels;
-	uint16_t num_input_channels;
-} __packed;
-
-
-/* ID of the Multichannel Volume Control parameters used by
- * AUDPROC_MODULE_ID_VOL_CTRL.
- */
-#define AUDPROC_PARAM_ID_MULTICHANNEL_GAIN                          0x00010713
-
-/* Payload of the AUDPROC_PARAM_ID_MULTICHANNEL_GAIN channel type/gain
- * pairs used by the Volume Control module.
- * This structure immediately follows the
- * audproc_volume_ctrl_multichannel_gain_t structure.
- */
-struct audproc_volume_ctrl_channel_type_gain_pair {
-	uint8_t channel_type;
-	/* Channel type for which the gain setting is to be applied. */
-
-	uint8_t reserved1;
-	uint8_t reserved2;
-	uint8_t reserved3;
-
-	uint32_t gain;
-	/* Gain value for this channel in Q28 format. */
-} __packed;
-
-/* Payload of the AUDPROC_PARAM_ID_MULTICHANNEL_MUTE parameters used by
- * the Volume Control module.
- */
-struct audproc_volume_ctrl_multichannel_gain {
-	uint32_t num_channels;
-	/* Number of channels for which mute configuration is provided. Any
-	 * channels present in the data for which mute configuration is not
-	 * provided are set to unmute.
-	 */
-
-	struct audproc_volume_ctrl_channel_type_gain_pair *gain_data;
-	/* Array of channel type/mute setting pairs. */
-} __packed;
 
 /* Structure for the mute configuration parameter for a
 	volume control module. */
@@ -9400,6 +9341,45 @@ struct afe_param_id_clip_bank_sel {
 
 	uint32_t bank_map[AFE_CLIP_MAX_BANKS];
 } __packed;
+
+/* SOMC effect start */
+/* Module/Parameter IDs */
+#define ASM_MODULE_ID_SONYBUNDLE            0x10002010
+
+#define PARAM_ID_SB_COMMON_USER_PARAM       0x10002011
+#define PARAM_ID_SB_DYNAMICNORMALIZER_USER_PARAM 0x10002012
+#define PARAM_ID_SB_SFORCE_USER_PARAM       0x10002013
+#define PARAM_ID_SB_VPT20_USER_PARAM        0x10002014
+#define PARAM_ID_SB_CLEARPHASE_HP_USER_PARAM 0x10002015
+#define PARAM_ID_SB_CLEARAUDIO_USER_PARAM   0x10002016
+#define PARAM_ID_SB_CLEARAUDIO_VOLUME_PARAM 0x10002017
+#define PARAM_ID_SB_CLEARPHASE_SP_USER_PARAM 0x10002018
+#define PARAM_ID_SB_XLOUD_USER_PARAM        0x10002019
+
+#define PARAM_ID_SB_CLEARPHASE_HP_TUNING    0x1000201A
+#define PARAM_ID_SB_SFORCE_TUNING           0x1000201B
+#define PARAM_ID_SB_CLEARPHASE_SP_TUNING    0x1000201C
+#define PARAM_ID_SB_XLOUD_TUNING            0x1000201D
+
+#define ASM_STREAM_POSTPROC_TOPO_ID_SONY    0x10002101
+
+struct clearphase_hp_tuning_params {
+	unsigned char coefs[2064];
+} __packed;
+
+struct s_force_tuning_params {
+	unsigned char coefs[1016];
+} __packed;
+
+struct clearphase_sp_tuning_params {
+	unsigned char coefs[2360];
+} __packed;
+
+struct xloud_tuning_params {
+	unsigned int level;
+	unsigned char coefs[512];
+} __packed;
+/* SOMC effect end */
 
 /* ERROR CODES */
 /* Success. The operation completed with no errors. */

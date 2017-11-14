@@ -9,6 +9,11 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
+/*
+ * NOTE: This file has been modified by Sony Mobile Communications Inc.
+ * Modifications are Copyright (c) 2017 Sony Mobile Communications Inc,
+ * and licensed under the license of the file.
+ */
 
 #include <linux/module.h>
 #include <linux/init.h>
@@ -1432,7 +1437,7 @@ static int qcom_ice_config_start(struct platform_device *pdev,
 	int ret = 0;
 	bool is_pfe = false;
 
-	if (!pdev || !req || !setting) {
+	if (!pdev || !req) {
 		pr_err("%s: Invalid params passed\n", __func__);
 		return -EINVAL;
 	}

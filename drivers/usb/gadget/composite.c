@@ -8,6 +8,11 @@
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  */
+/*
+ * NOTE: This file has been modified by Sony Mobile Communications Inc.
+ * Modifications are Copyright (c) 2017 Sony Mobile Communications Inc,
+ * and licensed under the license of the file.
+ */
 
 /* #define VERBOSE_DEBUG */
 
@@ -1690,9 +1695,9 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 				value = min(w_length, (u16) value);
 			break;
 		case USB_DT_BOS:
-			if ((gadget_is_superspeed(gadget) &&
-				(gadget->speed >= USB_SPEED_SUPER))
-				 || !disable_l1_for_hs) {
+			if (gadget_is_superspeed(gadget) &&
+				((gadget->speed >= USB_SPEED_SUPER)
+				 || !disable_l1_for_hs)) {
 				value = bos_desc(cdev);
 				value = min(w_length, (u16) value);
 			}
