@@ -2332,3 +2332,4 @@ void ce_ipa_get_resource(struct CE_handle *ce,
 	return;
 }
 #endif /* IPA_OFFLOAD */
+

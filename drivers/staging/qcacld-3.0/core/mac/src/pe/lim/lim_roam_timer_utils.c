@@ -150,3 +150,4 @@ void lim_deactivate_and_change_timer_host_roam(tpAniSirGlobal mac_ctx,
 		break;
 	}
 }
+

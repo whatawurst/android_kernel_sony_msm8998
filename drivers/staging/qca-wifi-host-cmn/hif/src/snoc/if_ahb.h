@@ -46,3 +46,4 @@
 #define TCSR_WCSS1_HALTACK 0x52014
 #define ATH_AHB_RESET_WAIT_MAX 10 /* Ms */
 #endif
+

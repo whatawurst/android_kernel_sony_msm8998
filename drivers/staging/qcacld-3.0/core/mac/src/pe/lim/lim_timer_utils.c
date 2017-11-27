@@ -1279,3 +1279,4 @@ void lim_quiet_bss_timer_handler(void *pMacGlobal, uint32_t param)
 	PELOG1(lim_log(pMac, LOG1, FL("Post SIR_LIM_QUIET_BSS_TIMEOUT msg. "));)
 	lim_post_msg_api(pMac, &msg);
 }
+

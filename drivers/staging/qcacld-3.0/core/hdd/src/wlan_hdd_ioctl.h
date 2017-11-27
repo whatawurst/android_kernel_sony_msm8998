@@ -46,3 +46,4 @@ int wlan_hdd_set_mc_rate(hdd_adapter_t *pAdapter, int targetRate);
  */
 QDF_STATUS hdd_update_smps_antenna_mode(hdd_context_t *hdd_ctx, int mode);
 #endif /* end #if !defined(WLAN_HDD_IOCTL_H) */
+

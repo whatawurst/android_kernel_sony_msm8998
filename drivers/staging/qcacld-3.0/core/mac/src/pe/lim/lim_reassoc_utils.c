@@ -556,3 +556,4 @@ void lim_post_reassoc_failure(tpAniSirGlobal pMac,
 	lim_post_sme_message(pMac,
 			     LIM_MLM_REASSOC_CNF, (uint32_t *) &mlmReassocCnf);
 }
+

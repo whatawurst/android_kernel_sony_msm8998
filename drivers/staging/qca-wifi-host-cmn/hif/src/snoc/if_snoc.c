@@ -456,3 +456,4 @@ int hif_snoc_bus_suspend_noirq(struct hif_softc *scn)
 		return -EBUSY;
 	return 0;
 }
+

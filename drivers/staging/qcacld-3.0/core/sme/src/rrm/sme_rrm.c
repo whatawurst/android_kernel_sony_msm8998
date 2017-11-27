@@ -1476,3 +1476,4 @@ QDF_STATUS rrm_change_default_config_param(tpAniSirGlobal pMac,
 
 	return QDF_STATUS_SUCCESS;
 }
+

@@ -767,3 +767,4 @@ uint16_t cds_bw_value(enum phy_ch_width bw)
 		return 0;
 	}
 }
+

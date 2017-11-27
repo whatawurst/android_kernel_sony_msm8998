@@ -387,3 +387,6 @@ void hif_ahb_device_reset(struct hif_softc *scn)
 		  __func__, __LINE__);
 }
 #endif
+
+
+

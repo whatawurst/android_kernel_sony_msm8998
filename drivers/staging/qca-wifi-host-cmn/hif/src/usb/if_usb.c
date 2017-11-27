@@ -722,3 +722,4 @@ int hif_check_fw_reg(struct hif_opaque_softc *scn)
 	return 0;
 }
 #endif
+

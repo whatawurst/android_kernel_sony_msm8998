@@ -390,3 +390,4 @@ lim_check_and_add_bss_description(tpAniSirGlobal mac_ctx,
 	}
 	qdf_mem_free(bssdescr);
 }
+

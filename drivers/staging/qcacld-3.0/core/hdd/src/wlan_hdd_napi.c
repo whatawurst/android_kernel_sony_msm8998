@@ -511,3 +511,4 @@ int hdd_display_napi_stats(void)
 	hif_napi_stats(napid);
 	return 0;
 }
+

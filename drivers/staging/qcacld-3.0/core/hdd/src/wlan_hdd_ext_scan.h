@@ -124,3 +124,4 @@ static void wlan_hdd_cfg80211_extscan_init(hdd_context_t *hdd_ctx)
 #endif /* End of FEATURE_WLAN_EXTSCAN */
 
 #endif /* end #if !defined(WLAN_HDD_EXT_SCAN_H) */
+

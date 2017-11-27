@@ -2614,3 +2614,4 @@ void __hdd_indicate_mgmt_frame(hdd_adapter_t *pAdapter,
 			pbFrames, nFrameLength, GFP_ATOMIC);
 #endif /* LINUX_VERSION_CODE */
 }
+

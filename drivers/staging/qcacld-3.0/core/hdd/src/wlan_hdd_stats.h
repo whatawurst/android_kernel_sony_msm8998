@@ -239,3 +239,4 @@ int wlan_hdd_get_rcpi(hdd_adapter_t *adapter, uint8_t *mac,
 		      enum rcpi_measurement_type measurement_type);
 
 #endif /* end #if !defined(WLAN_HDD_STATS_H) */
+

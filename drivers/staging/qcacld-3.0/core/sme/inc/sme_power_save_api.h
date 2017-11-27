@@ -108,3 +108,4 @@ bool sme_is_auto_ps_timer_running(tHalHandle hal_ctx,
 		uint32_t session_id);
 
 #endif /* #if !defined(__SME_POWER_SAVE_API_H) */
+

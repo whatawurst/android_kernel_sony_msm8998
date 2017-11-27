@@ -270,6 +270,7 @@ typedef struct _cds_context_type {
 	uint32_t driver_state;
 
 	qdf_event_t wmaCompleteEvent;
+	unsigned long fw_state;
 
 	/* WMA Context */
 	void *pWMAContext;
@@ -331,6 +332,8 @@ typedef struct _cds_context_type {
 
 	/* This is to track if HW mode change is in progress */
 	uint32_t hw_mode_change_in_progress;
+	qdf_work_t cds_recovery_work;
+	qdf_workqueue_t *cds_recovery_wq;
 } cds_context_type, *p_cds_contextType;
 
 extern struct _cds_sched_context *gp_cds_sched_context;

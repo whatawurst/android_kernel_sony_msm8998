@@ -766,3 +766,4 @@ tSirRetStatus __lim_process_sme_no_a_update(tpAniSirGlobal pMac, uint32_t *pMsgB
 
 	return eSIR_SUCCESS;
 } /*** end __limProcessSmeGoNegReq() ***/
+

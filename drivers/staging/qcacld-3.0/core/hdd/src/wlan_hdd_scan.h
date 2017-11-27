@@ -130,3 +130,4 @@ void wlan_hdd_cfg80211_abort_scan(struct wiphy *wiphy,
 				  struct wireless_dev *wdev);
 #endif
 #endif /* end #if !defined(WLAN_HDD_SCAN_H) */
+

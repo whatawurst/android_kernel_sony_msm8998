@@ -16,45 +16,26 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
+#ifndef __WLAN_HDD_DATA_STALL_DETECTION_H
+#define __WLAN_HDD_DATA_STALL_DETECTION_H
+
 /**
- * DOC: qdf_debugfs.h
- * This file provides OS abstraction for debug filesystem APIs.
- */
-
-#ifndef _QDF_DEBUGFS_H
-#define _QDF_DEBUGFS_H
-
-#include <qdf_status.h>
-#include <i_qdf_debugfs.h>
-
-#ifdef WLAN_DEBUGFS
-/**
- * qdf_debugfs_init() - initialize debugfs
+ * DOC: wlan_hdd_data_stall_detection.h
  *
- * Return: QDF_STATUS
+ * WLAN Host Device Driver data stall detection API specification
  */
-QDF_STATUS qdf_debugfs_init(void);
 
 /**
- * qdf_debugfs_exit() - cleanup debugfs
+ * hdd_register_data_stall_detect_cb() - register data stall callback
  *
- * Return: QDF_STATUS
+ * Return: 0 for success or Error code for failure
  */
-QDF_STATUS qdf_debugfs_exit(void);
+int hdd_register_data_stall_detect_cb(void);
 
-#else
-
-static inline QDF_STATUS qdf_debugfs_init(void)
-{
-	return QDF_STATUS_E_NOSUPPORT;
-}
-
-static inline QDF_STATUS qdf_debugfs_exit(void)
-{
-	return QDF_STATUS_E_NOSUPPORT;
-}
-
-#endif /* WLAN_DEBUGFS */
-#endif /* _QDF_DEBUGFS_H */
-
-
+/**
+ * hdd_deregister_data_stall_detect_cb() - de-register data stall callback
+ *
+ * Return: 0 for success or Error code for failure
+ */
+int hdd_deregister_data_stall_detect_cb(void);
+#endif /* __WLAN_HDD_DATA_STALL_DETECTION_H */

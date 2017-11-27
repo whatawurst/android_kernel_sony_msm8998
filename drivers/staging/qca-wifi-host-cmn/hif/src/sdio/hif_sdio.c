@@ -225,3 +225,4 @@ void hif_send_complete_check(struct hif_opaque_softc *hif_ctx, uint8_t pipe,
 {
 
 }
+

@@ -1159,3 +1159,4 @@ bool sme_is_auto_ps_timer_running(tHalHandle hal_ctx,
 	}
 	return status;
 }
+

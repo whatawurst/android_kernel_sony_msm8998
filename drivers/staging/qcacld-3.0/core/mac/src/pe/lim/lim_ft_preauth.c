@@ -793,3 +793,4 @@ void lim_preauth_scan_event_handler(tpAniSirGlobal mac_ctx,
 		break;
 	}
 }
+

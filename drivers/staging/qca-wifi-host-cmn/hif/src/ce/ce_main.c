@@ -3086,3 +3086,4 @@ void hif_wlan_disable(struct hif_softc *scn)
 
 	pld_wlan_disable(scn->qdf_dev->dev, mode);
 }
+

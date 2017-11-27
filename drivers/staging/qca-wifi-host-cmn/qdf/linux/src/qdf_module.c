@@ -65,3 +65,4 @@ qdf_mod_exit(void)
 	qdf_perfmod_exit();
 }
 module_exit(qdf_mod_exit);
+

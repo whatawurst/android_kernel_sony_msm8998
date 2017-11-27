@@ -123,3 +123,4 @@ QDF_STATUS send_scan_stop_cmd_non_tlv(wmi_unified_t wmi_handle,
 
 QDF_STATUS send_scan_chan_list_cmd_non_tlv(wmi_unified_t wmi_handle,
 				struct scan_chan_list_params *param);
+

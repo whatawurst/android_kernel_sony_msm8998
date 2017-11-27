@@ -296,3 +296,4 @@ A_STATUS ol_get_intra_bss_fwd_pkts_count(uint8_t vdev_id,
 	*fwd_rx_packets = vdev->fwd_rx_packets;
 	return A_OK;
 }
+

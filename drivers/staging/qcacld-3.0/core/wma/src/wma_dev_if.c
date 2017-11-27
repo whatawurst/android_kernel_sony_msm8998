@@ -2646,6 +2646,9 @@ static inline bool wma_crash_on_fw_timeout(bool crash_enabled)
 	if (cds_is_driver_recovering())
 		return false;
 
+	if (!cds_is_fw_down())
+		return false;
+
 	if (cds_is_driver_unloading())
 		return false;
 
@@ -2872,6 +2875,16 @@ void wma_vdev_resp_timer(void *data)
 		goto free_tgt_req;
 	}
 
+	WMA_LOGA("%s: request %d is timed out for vdev_id - %d", __func__,
+		 tgt_req->msg_type, tgt_req->vdev_id);
+	msg = wma_find_vdev_req(wma, tgt_req->vdev_id, tgt_req->type);
+
+	if (!msg) {
+		WMA_LOGE("%s: Failed to lookup request message - %d",
+			 __func__, tgt_req->msg_type);
+		return;
+	}
+
 	pdev = cds_get_context(QDF_MODULE_ID_TXRX);
 
 	if (NULL == pdev) {
@@ -2881,24 +2894,16 @@ void wma_vdev_resp_timer(void *data)
 		goto free_tgt_req;
 	}
 
-	WMA_LOGA("%s: request %d is timed out for vdev_id - %d", __func__,
-		 tgt_req->msg_type, tgt_req->vdev_id);
-	msg = wma_find_vdev_req(wma, tgt_req->vdev_id, tgt_req->type);
-
-	if (!msg) {
-		WMA_LOGE("%s: Failed to lookup request message - %d",
-			 __func__, tgt_req->msg_type);
-		wma_cleanup_target_req_param(tgt_req);
-		goto free_tgt_req;
-	}
-
 	if (tgt_req->msg_type == WMA_CHNL_SWITCH_REQ) {
 		tpSwitchChannelParams params =
 			(tpSwitchChannelParams) tgt_req->user_data;
 		params->status = QDF_STATUS_E_TIMEOUT;
 		WMA_LOGA("%s: WMA_SWITCH_CHANNEL_REQ timedout", __func__);
 
-		/* Trigger host crash if the flag is set */
+		/*
+		 * Trigger host crash if the flag is set or if the timeout
+		 * is not due to fw down
+		 */
 		if (wma_crash_on_fw_timeout(wma->fw_timeout_crash) == true)
 			QDF_BUG(0);
 		else
@@ -2930,7 +2935,10 @@ void wma_vdev_resp_timer(void *data)
 			qdf_mc_timer_stop(&tgt_req->event_timeout);
 			goto free_tgt_req;
 		}
-		/* Trigger host crash when vdev response timesout */
+		/*
+		 * Trigger host crash if the flag is set or if the timeout
+		 * is not due to fw down
+		 */
 		if (wma_crash_on_fw_timeout(wma->fw_timeout_crash) == true) {
 			QDF_BUG(0);
 			return;

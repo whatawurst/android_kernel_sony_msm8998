@@ -158,3 +158,4 @@ static inline void lim_ndp_add_sta_rsp(tpAniSirGlobal mac_ctx,
 #endif /* WLAN_FEATURE_NAN_DATAPATH */
 
 #endif /* __MAC_NAN_DATAPATH_H */
+

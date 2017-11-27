@@ -143,3 +143,4 @@ static inline void ol_txrx_ipa_uc_get_stat(ol_txrx_pdev_handle pdev)
 #endif /* IPA_OFFLOAD */
 
 #endif /* _CDP_TXRX_IPA_H_ */
+
