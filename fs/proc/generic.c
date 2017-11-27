@@ -366,7 +366,7 @@ static struct proc_dir_entry *__proc_create(struct proc_dir_entry **parent,
 	qstr.name = fn;
 	qstr.len = strlen(fn);
 	if (qstr.len == 0 || qstr.len >= 256) {
-		WARN(1, "name len %u\n", qstr.len);
+		WARN(1, "name len %u for %s\n", qstr.len, name);
 		return NULL;
 	}
 	if (*parent == &proc_root && name_to_int(&qstr) != ~0U) {
