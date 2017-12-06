@@ -329,9 +329,15 @@ static void msm_restart_prepare(const char *cmd)
 				PON_RESTART_REASON_BOOTLOADER);
 			__raw_writel(0x77665500, restart_reason);
 		} else if (!strncmp(cmd, "recovery", 8)) {
+#ifdef CONFIG_ARCH_SONY_YOSHINO
+			qpnp_pon_set_restart_reason(
+				PON_RESTART_REASON_OEM_F);
+			__raw_writel(0x6f656d46, restart_reason); //oem-F
+#else
 			qpnp_pon_set_restart_reason(
 				PON_RESTART_REASON_RECOVERY);
 			__raw_writel(0x77665502, restart_reason);
+#endif
 		} else if (!strcmp(cmd, "rtc")) {
 			qpnp_pon_set_restart_reason(
 				PON_RESTART_REASON_RTC);
