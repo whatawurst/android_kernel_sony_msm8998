@@ -34,8 +34,6 @@
 #define _WMI_UNIFIED_API_H_
 
 #include <osdep.h>
-#include "a_types.h"
-#include "ol_defines.h"
 #ifdef CONFIG_MCL
 #include "wmi.h"
 #endif
@@ -366,6 +364,13 @@ QDF_STATUS wmi_unified_stats_request_send(void *wmi_hdl,
 
 QDF_STATUS wmi_unified_green_ap_ps_send(void *wmi_hdl,
 						uint32_t value, uint8_t mac_id);
+
+#ifdef FEATURE_WLAN_D0WOW
+QDF_STATUS wmi_d0wow_enable_send(void *wmi_hdl,
+				uint8_t mac_id);
+QDF_STATUS wmi_d0wow_disable_send(void *wmi_hdl,
+				uint8_t mac_id);
+#endif
 
 
 QDF_STATUS wmi_unified_wow_enable_send(void *wmi_hdl,
@@ -742,6 +747,19 @@ QDF_STATUS wmi_unified_add_clear_mcbc_filter_cmd(void *wmi_hdl,
 					 struct qdf_mac_addr multicast_addr,
 					 bool clearList);
 
+/**
+ * wmi_unified_multiple_add_clear_mcbc_filter_cmd() - send multiple mcast
+ *						      filter command to fw
+ * @wmi_handle: wmi handle
+ * @vdev_id: vdev id
+ * @mcast_filter_params: mcast filter params
+ *
+ * Return: QDF_STATUS_SUCCESS on success and QDF_STATUS_E_FAILURE for failure
+ */
+QDF_STATUS wmi_unified_multiple_add_clear_mcbc_filter_cmd(void *wmi_hdl,
+				uint8_t vdev_id,
+				struct mcast_filter_params *filter_param);
+
 QDF_STATUS wmi_unified_send_gtk_offload_cmd(void *wmi_hdl, uint8_t vdev_id,
 					   struct gtk_offload_params *params,
 					   bool enable_offload,
@@ -782,8 +800,8 @@ QDF_STATUS wmi_unified_process_ch_avoid_update_cmd(void *wmi_hdl);
 
 QDF_STATUS wmi_unified_send_regdomain_info_to_fw_cmd(void *wmi_hdl,
 				   uint32_t reg_dmn, uint16_t regdmn2G,
-				   uint16_t regdmn5G, int8_t ctl2G,
-				   int8_t ctl5G);
+				   uint16_t regdmn5G, uint8_t ctl2G,
+				   uint8_t ctl5G);
 
 QDF_STATUS wmi_unified_set_tdls_offchan_mode_cmd(void *wmi_hdl,
 			      struct tdls_channel_switch_params *chan_switch_params);
@@ -855,8 +873,7 @@ QDF_STATUS wmi_unified_enable_arp_ns_offload_cmd(void *wmi_hdl,
 /**
  * wmi_unified_conf_hw_filter_mode_cmd() - Configure hardware filter
  * @wmi_hdl: wmi handle
- * @vdev_id: device identifier
- * @config_bitmap: bitmap of packet types to drop
+ * @req: HW filter request parameters
  *
  * The hardware filter is only effective in DTIM mode. Use this configuration
  * to blanket drop broadcast/multicast packets at the hardware level, without
@@ -864,9 +881,9 @@ QDF_STATUS wmi_unified_enable_arp_ns_offload_cmd(void *wmi_hdl,
  *
  * Return: QDF_STATUS
  */
-QDF_STATUS wmi_unified_conf_hw_filter_mode_cmd(void *wmi_hdl,
-					       uint8_t vdev_id,
-					       uint8_t config_bitmap);
+QDF_STATUS
+wmi_unified_conf_hw_filter_mode_cmd(void *wmi_hdl,
+				    struct wmi_hw_filter_req_params *req);
 
 QDF_STATUS wmi_unified_set_led_flashing_cmd(void *wmi_hdl,
 				struct flashing_req_params *flashing);
@@ -892,8 +909,7 @@ QDF_STATUS wmi_unified_roam_scan_offload_cmd(void *wmi_hdl,
 
 #ifndef WMI_NON_TLV_SUPPORT
 QDF_STATUS wmi_unified_send_roam_scan_offload_ap_cmd(void *wmi_hdl,
-					    wmi_ap_profile *ap_profile_p,
-					    uint32_t vdev_id);
+				   struct ap_profile_params *ap_profile);
 #endif
 
 QDF_STATUS wmi_unified_roam_scan_offload_scan_period(void *wmi_hdl,
@@ -1376,4 +1392,92 @@ QDF_STATUS wmi_unified_set_arp_stats_req(void *wmi_hdl,
 					 struct set_arp_stats *req_buf);
 QDF_STATUS wmi_unified_get_arp_stats_req(void *wmi_hdl,
 					 struct get_arp_stats *req_buf);
+
+/**
+ * wmi_unified_send_action_oui_cmd() - send action oui cmd to fw
+ * @wmi_hdl: wma handle
+ * @action_oui: wmi action oui message to be send
+ *
+ * Return: QDF_STATUS_SUCCESS on success and QDF_STATUS_E_FAILURE for failure
+ */
+QDF_STATUS
+wmi_unified_send_action_oui_cmd(void *wmi_hdl,
+				struct wmi_action_oui *action_oui);
+
+/*
+ * wmi_unified_set_del_pmkid_cache() - set delete PMKID
+ * @wmi_hdl: wma handle
+ * @pmksa: pointer to pmk cache entry
+ * @vdev_id: vdev id
+ *
+ * Return: QDF_STATUS_SUCCESS on success and QDF_STATUS_E_FAILURE for failure
+ */
+QDF_STATUS wmi_unified_set_del_pmkid_cache(void *wmi_hdl,
+					wmi_pmk_cache *pmksa,
+					uint32_t vdev_id);
+
+#if defined (WLAN_FEATURE_FILS_SK)
+/*
+ * wmi_unified_roam_send_hlp_cmd() -send HLP command info
+ * @wmi_hdl: wma handle
+ * @req_buf: Pointer to HLP params
+ *
+ * Return: QDF_STATUS_SUCCESS on success and QDF_STATUS_E_FAILURE for failure
+ */
+QDF_STATUS wmi_unified_roam_send_hlp_cmd(void *wmi_hdl,
+					struct hlp_params *req_buf);
+#endif
+
+#ifdef WMI_INTERFACE_EVENT_LOGGING
+void wmi_print_cmd_log(wmi_unified_t wmi, uint32_t count,
+		       qdf_abstract_print *print, void *print_priv);
+
+void wmi_print_cmd_tx_cmp_log(wmi_unified_t wmi, uint32_t count,
+			      qdf_abstract_print *print, void *print_priv);
+
+void wmi_print_mgmt_cmd_log(wmi_unified_t wmi, uint32_t count,
+			    qdf_abstract_print *print, void *print_priv);
+
+void wmi_print_mgmt_cmd_tx_cmp_log(wmi_unified_t wmi, uint32_t count,
+				   qdf_abstract_print *print, void *print_priv);
+
+void wmi_print_event_log(wmi_unified_t wmi, uint32_t count,
+			 qdf_abstract_print *print, void *print_priv);
+
+void wmi_print_rx_event_log(wmi_unified_t wmi, uint32_t count,
+			    qdf_abstract_print *print, void *print_priv);
+
+void wmi_print_mgmt_event_log(wmi_unified_t wmi, uint32_t count,
+			      qdf_abstract_print *print, void *print_priv);
+#endif /* WMI_INTERFACE_EVENT_LOGGING */
+
+QDF_STATUS wmi_unified_send_dbs_scan_sel_params_cmd(void *wmi_hdl,
+				   struct wmi_dbs_scan_sel_params *wmi_param);
+
+QDF_STATUS wmi_unified_send_limit_off_chan_cmd(void *wmi_hdl,
+				   struct wmi_limit_off_chan_param *wmi_param);
+
+/**
+ * wmi_unified_offload_11k_cmd() - send 11k offload command
+ * @wmi_hdl: wmi handle
+ * @params: 11k offload params
+ *
+ * This function passes the 11k offload command params to FW
+ *
+ * Return: QDF_STATUS_SUCCESS on success and QDF_STATUS_E_FAILURE for failure
+ */
+QDF_STATUS wmi_unified_offload_11k_cmd(void *wmi_hdl,
+				struct wmi_11k_offload_params *params);
+
+/**
+ * wmi_unified_invoke_neighbor_report_cmd() - send invoke neighbor report cmd
+ * @wmi_hdl: wmi handle
+ * @params: invoke neighbor report params
+ *
+ * This function passes the invoke neighbor report command to fw
+ *
+ * Return: QDF_STATUS_SUCCESS on success and QDF_STATUS_E_FAILURE for failure
+ */
+QDF_STATUS wmi_unified_invoke_neighbor_report_cmd(void *wmi_hdl,
+			struct wmi_invoke_neighbor_report_params *params);
 #endif /* _WMI_UNIFIED_API_H_ */

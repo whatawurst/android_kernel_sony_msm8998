@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2011-2012, 2014-2015 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2011-2017 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -25,27 +22,21 @@
  * to the Linux Foundation.
  */
 
-/*
+/**
+ * @file htt_deps.h
  *
- * Author:      Kevin Nguyen
- * Date:        04/09/02
- * History:-
- * 04/09/02        Created.
- * --------------------------------------------------------------------
+ * @details list other header files that contain the defs for data types,
+ *      constants, and compiler pragmas used in the HTT header files
  */
 
-#ifndef __CFG_DEBUG_H__
-#define __CFG_DEBUG_H__
+#ifndef _HTT_DEPS_H_
+#define _HTT_DEPS_H_
 
-#include "sir_debug.h"
-#include "utils_api.h"
-#include "lim_trace.h"
-
-#if !defined(__printf)
-#define __printf(a, b)
+#include <a_types.h>    /* A_UINT32 */
+#include <a_osapi.h>    /* PREPACK, POSTPACK */
+#ifdef ATHR_WIN_NWF
+#pragma warning(disable:4214) /* bit field types other than int */
 #endif
+#include "wlan_defs.h"
 
-void __printf(3, 4) cfg_log(tpAniSirGlobal pMac, uint32_t loglevel,
-			    const char *pString, ...);
-
-#endif
+#endif /* _HTT_DEPS_H_ */

@@ -95,7 +95,7 @@ static A_STATUS pktlog_wma_post_msg(WMI_PKTLOG_EVENT event_types,
 	msg.bodyptr = param;
 	msg.bodyval = 0;
 
-	status = cds_mq_post_message(CDS_MQ_ID_WMA, &msg);
+	status = cds_mq_post_message(QDF_MODULE_ID_WMA, &msg);
 
 	if (status != QDF_STATUS_SUCCESS) {
 		qdf_mem_free(param);
@@ -388,7 +388,7 @@ void pktlog_init(struct hif_opaque_softc *scn)
 	PKTLOG_SW_EVENT_SUBSCRIBER.callback = pktlog_callback;
 }
 
-static int __pktlog_enable(struct hif_opaque_softc *scn, int32_t log_state,
+int __pktlog_enable(struct hif_opaque_softc *scn, int32_t log_state,
 		 bool ini_triggered, uint8_t user_triggered,
 		 uint32_t is_iwpriv_command)
 {
@@ -516,21 +516,21 @@ int pktlog_enable(struct hif_opaque_softc *scn, int32_t log_state,
 	int error;
 
 	if (!scn) {
-		pr_err("%s: Invalid scn context\n", __func__);
+		printk("%s: Invalid scn context\n", __func__);
 		ASSERT(0);
 		return -EINVAL;
 	}
 
 	txrx_pdev = cds_get_context(QDF_MODULE_ID_TXRX);
 	if (!txrx_pdev) {
-		pr_err("%s: Invalid txrx_pdev context\n", __func__);
+		printk("%s: Invalid txrx_pdev context\n", __func__);
 		ASSERT(0);
 		return -EINVAL;
 	}
 
 	pl_dev = txrx_pdev->pl_dev;
 	if (!pl_dev) {
-		pr_err("%s: Invalid pktlog context\n", __func__);
+		printk("%s: Invalid pktlog context\n", __func__);
 		ASSERT(0);
 		return -EINVAL;
 	}
@@ -761,8 +761,8 @@ static void pktlog_t2h_msg_handler(void *context, HTC_PACKET *pkt)
 	uint32_t *msg_word;
 
 	/* check for successful message reception */
-	if (pkt->Status != A_OK) {
-		if (pkt->Status != A_ECANCELED)
+	if (pkt->Status != QDF_STATUS_SUCCESS) {
+		if (pkt->Status != QDF_STATUS_E_CANCELED)
 			pdev->htc_err_cnt++;
 		qdf_nbuf_free(pktlog_t2h_msg);
 		return;
@@ -809,7 +809,7 @@ static void pktlog_h2t_send_complete(void *context, HTC_PACKET *htc_pkt)
  *
  * Return: HTC action
  */
-static HTC_SEND_FULL_ACTION pktlog_h2t_full(void *context, HTC_PACKET *pkt)
+static enum htc_send_full_action pktlog_h2t_full(void *context, HTC_PACKET *pkt)
 {
 	return HTC_SEND_FULL_KEEP;
 }
@@ -822,9 +822,9 @@ static HTC_SEND_FULL_ACTION pktlog_h2t_full(void *context, HTC_PACKET *pkt)
  */
 static int pktlog_htc_connect_service(struct ol_pktlog_dev_t *pdev)
 {
-	HTC_SERVICE_CONNECT_REQ connect;
-	HTC_SERVICE_CONNECT_RESP response;
-	A_STATUS status;
+	struct htc_service_connect_req connect;
+	struct htc_service_connect_resp response;
+	QDF_STATUS status;
 
 	qdf_mem_set(&connect, sizeof(connect), 0);
 	qdf_mem_set(&response, sizeof(response), 0);
@@ -857,8 +857,9 @@ static int pktlog_htc_connect_service(struct ol_pktlog_dev_t *pdev)
 
 	status = htc_connect_service(pdev->htc_pdev, &connect, &response);
 
-	if (status != A_OK) {
+	if (status != QDF_STATUS_SUCCESS) {
 		pdev->mt_pktlog_enabled = false;
+
 		if (!cds_is_fw_down())
 			QDF_BUG(0);
 
