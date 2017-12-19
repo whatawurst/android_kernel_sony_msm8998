@@ -251,9 +251,9 @@ static void hdd_regulatory_wiphy_init(hdd_context_t *hdd_ctx,
 	 * disable 2.4 Ghz channels that dont have 20 mhz bw
 	 */
 	for (chan_num = 0;
-	     chan_num < wiphy->bands[NL80211_BAND_2GHZ]->n_channels;
+	     chan_num < wiphy->bands[HDD_NL80211_BAND_2GHZ]->n_channels;
 	     chan_num++) {
-		chan = &(wiphy->bands[NL80211_BAND_2GHZ]->channels[chan_num]);
+		chan = &(wiphy->bands[HDD_NL80211_BAND_2GHZ]->channels[chan_num]);
 		if (chan->flags & IEEE80211_CHAN_NO_20MHZ)
 			chan->flags |= IEEE80211_CHAN_DISABLED;
 	}
@@ -338,19 +338,19 @@ static void hdd_modify_wiphy(struct wiphy  *wiphy,
 			chan->flags &= ~IEEE80211_CHAN_DISABLED;
 
 			if (!(reg_rule->flags & NL80211_RRF_DFS)) {
-				hdd_info("Remove dfs restriction for %u",
+				hdd_debug("Remove dfs restriction for %u",
 					chan->center_freq);
 				chan->flags &= ~IEEE80211_CHAN_RADAR;
 			}
 
 			if (!(reg_rule->flags & NL80211_RRF_PASSIVE_SCAN)) {
-				hdd_info("Remove passive restriction for %u",
+				hdd_debug("Remove passive restriction for %u",
 					chan->center_freq);
 				chan->flags &= ~IEEE80211_CHAN_PASSIVE_SCAN;
 			}
 
 			if (!(reg_rule->flags & NL80211_RRF_NO_IBSS)) {
-				hdd_info("Remove no ibss restriction for %u",
+				hdd_debug("Remove no ibss restriction for %u",
 					chan->center_freq);
 				chan->flags &= ~IEEE80211_CHAN_NO_IBSS;
 			}
@@ -359,6 +359,103 @@ static void hdd_modify_wiphy(struct wiphy  *wiphy,
 				MBM_TO_DBM(reg_rule->power_rule.max_eirp);
 		}
 	}
+}
+
+/**
+ * hdd_modify_indoor_channel_state_flags() - modify wiphy flags and cds state
+ * @wiphy_chan: wiphy channel number
+ * @cds_chan: cds channel structure
+ * @disable: Disable/enable the flags
+ *
+ * Modify wiphy flags and cds state if channel is indoor.
+ *
+ * Return: void
+ */
+void hdd_modify_indoor_channel_state_flags(
+	hdd_context_t *hdd_ctx,
+	struct ieee80211_channel *wiphy_chan,
+	struct regulatory_channel *cds_chan,
+	enum channel_enum chan_enum, int chan_num, bool disable)
+{
+	bool indoor_support = hdd_ctx->config->indoor_channel_support;
+
+	/* Mark indoor channel to disable in wiphy and cds */
+	if (disable) {
+		if (wiphy_chan->flags & IEEE80211_CHAN_INDOOR_ONLY) {
+			wiphy_chan->flags |=
+				IEEE80211_CHAN_DISABLED;
+			hdd_info("Mark indoor channel %d as disable",
+				chan_mapping[chan_enum-1].chan_num);
+			cds_chan->state =
+				CHANNEL_STATE_DISABLE;
+		}
+	} else {
+		if (wiphy_chan->flags & IEEE80211_CHAN_INDOOR_ONLY) {
+			wiphy_chan->flags &=
+					~IEEE80211_CHAN_DISABLED;
+			/*
+			  * Indoor channels may be marked as dfs / enable
+			  * during regulatory processing
+			  */
+			if ((wiphy_chan->flags &
+				(IEEE80211_CHAN_RADAR |
+				IEEE80211_CHAN_PASSIVE_SCAN)) ||
+			     ((indoor_support == false) &&
+				(wiphy_chan->flags &
+				IEEE80211_CHAN_INDOOR_ONLY)))
+				cds_chan->state =
+					CHANNEL_STATE_DFS;
+			else
+				cds_chan->state =
+					CHANNEL_STATE_ENABLE;
+			hdd_info("Mark indoor channel %d as cds_chan state %d",
+				chan_mapping[chan_enum-1].chan_num,
+				cds_chan->state);
+		}
+	}
+
+}
+
+void hdd_update_indoor_channel(hdd_context_t *hdd_ctx,
+					bool disable)
+{
+	int band_num;
+	int chan_num;
+	enum channel_enum chan_enum = CHAN_ENUM_1;
+	struct ieee80211_channel *wiphy_chan, *wiphy_chan_144 = NULL;
+	struct regulatory_channel *cds_chan;
+	uint8_t band_capability;
+	struct wiphy *wiphy = hdd_ctx->wiphy;
+
+	ENTER();
+	hdd_info("disable: %d", disable);
+
+	band_capability = hdd_ctx->curr_band;
+	for (band_num = 0; band_num < HDD_NUM_NL80211_BANDS; band_num++) {
+
+		if (wiphy->bands[band_num] == NULL)
+			continue;
+
+		for (chan_num = 0;
+		     chan_num < wiphy->bands[band_num]->n_channels &&
+		     chan_enum < NUM_CHANNELS;
+		     chan_num++) {
+
+			wiphy_chan =
+				&(wiphy->bands[band_num]->channels[chan_num]);
+			cds_chan = &(reg_channels[chan_enum]);
+			if (chan_enum == CHAN_ENUM_144)
+				wiphy_chan_144 = wiphy_chan;
+
+			chan_enum++;
+			hdd_modify_indoor_channel_state_flags(hdd_ctx,
+				wiphy_chan, cds_chan,
+				chan_enum, chan_num, disable);
+			cds_chan->flags = wiphy_chan->flags;
+		}
+	}
+	EXIT();
+
 }
 
 /**
@@ -380,9 +477,9 @@ static void hdd_process_regulatory_data(hdd_context_t *hdd_ctx,
 	struct regulatory_channel *cds_chan;
 	uint8_t band_capability;
 
-	band_capability = hdd_ctx->config->nBandCapability;
+	band_capability = hdd_ctx->curr_band;
 
-	for (band_num = 0; band_num < NUM_NL80211_BANDS; band_num++) {
+	for (band_num = 0; band_num < HDD_NUM_NL80211_BANDS; band_num++) {
 
 		if (wiphy->bands[band_num] == NULL)
 			continue;
@@ -502,7 +599,12 @@ int hdd_regulatory_init(hdd_context_t *hdd_ctx, struct wiphy *wiphy)
 
 	hdd_process_regulatory_data(hdd_ctx, wiphy, true);
 
-	reg_info->cc_src = SOURCE_DRIVER;
+	if (hdd_is_world_regdomain(reg_info->reg_domain))
+		reg_info->cc_src = SOURCE_CORE;
+	else
+		reg_info->cc_src = SOURCE_DRIVER;
+
+	sme_set_cc_src(hdd_ctx->hHal, reg_info->cc_src);
 
 	cds_put_default_country(reg_info->alpha2);
 
@@ -563,7 +665,7 @@ static void hdd_restore_custom_reg_settings(struct wiphy *wiphy,
 	    (country_alpha2[1] == '0') &&
 	    (wiphy->flags & WIPHY_FLAG_CUSTOM_REGULATORY)) {
 
-		for (band = 0; band < NUM_NL80211_BANDS; band++) {
+		for (band = 0; band < HDD_NUM_NL80211_BANDS; band++) {
 			sband = wiphy->bands[band];
 			if (!sband)
 				continue;
@@ -624,7 +726,8 @@ void hdd_reg_notifier(struct wiphy *wiphy,
 		return;
 	}
 
-	if (cds_is_driver_unloading() || cds_is_driver_recovering()) {
+	if (cds_is_driver_unloading() || cds_is_driver_recovering() ||
+	    cds_is_driver_in_bad_state()) {
 		hdd_err("%s: unloading or ssr in progress, ignore",
 			__func__);
 		return;
@@ -642,11 +745,11 @@ void hdd_reg_notifier(struct wiphy *wiphy,
 
 	if (('K' == request->alpha2[0]) &&
 	    ('R' == request->alpha2[1]))
-		request->dfs_region = DFS_KR_REGION;
+		request->dfs_region = (enum nl80211_dfs_regions) DFS_KR_REGION;
 
 	if (('C' == request->alpha2[0]) &&
 	    ('N' == request->alpha2[1]))
-		request->dfs_region = DFS_CN_REGION;
+		request->dfs_region = (enum nl80211_dfs_regions) DFS_CN_REGION;
 
 	/* first check if this callback is in response to the driver callback */
 
@@ -684,13 +787,22 @@ void hdd_reg_notifier(struct wiphy *wiphy,
 
 		if (NL80211_REGDOM_SET_BY_CORE == request->initiator) {
 			hdd_ctx->reg.cc_src = SOURCE_CORE;
+			pld_set_cc_source(hdd_ctx->parent_dev,
+						PLD_SOURCE_CORE);
+			sme_set_cc_src(hdd_ctx->hHal, SOURCE_CORE);
 			if (is_wiphy_custom_regulatory(wiphy))
 				reset = true;
 		} else if (NL80211_REGDOM_SET_BY_DRIVER == request->initiator) {
 			hdd_ctx->reg.cc_src = SOURCE_DRIVER;
 			sme_set_cc_src(hdd_ctx->hHal, SOURCE_DRIVER);
 		} else {
-			hdd_ctx->reg.cc_src = SOURCE_USERSPACE;
+			sme_set_cc_src(hdd_ctx->hHal, SOURCE_USERSPACE);
+
+			if (pld_get_cc_source(hdd_ctx->parent_dev)
+							== PLD_SOURCE_11D)
+				hdd_ctx->reg.cc_src = SOURCE_11D;
+			else
+				hdd_ctx->reg.cc_src = SOURCE_USERSPACE;
 			hdd_restore_custom_reg_settings(wiphy,
 							request->alpha2,
 							&reset);
@@ -708,7 +820,8 @@ void hdd_reg_notifier(struct wiphy *wiphy,
 
 		cds_fill_and_send_ctl_to_fw(&hdd_ctx->reg);
 
-		hdd_set_dfs_region(hdd_ctx, request->dfs_region);
+		hdd_set_dfs_region(hdd_ctx,
+				   (enum dfs_region) request->dfs_region);
 
 		cds_get_dfs_region(&dfs_reg);
 		cds_set_wma_dfs_region(dfs_reg);

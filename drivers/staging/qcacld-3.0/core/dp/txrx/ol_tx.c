@@ -49,6 +49,7 @@
 /* internal header files relevant only for specific systems (Pronto) */
 #include <ol_txrx_encap.h>      /* OL_TX_ENCAP, etc */
 #include <ol_tx.h>
+#include <cdp_txrx_ipa.h>
 
 #ifdef WLAN_FEATURE_FASTPATH
 #include <hif.h>              /* HIF_DEVICE */
@@ -56,7 +57,6 @@
 #include <htt_internal.h>
 #include <htt_types.h>        /* htc_endpoint */
 #include <cdp_txrx_peer_ops.h>
-#include <cdp_txrx_ipa.h>
 
 int ce_send_fast(struct CE_handle *copyeng, qdf_nbuf_t msdu,
 		 unsigned int transfer_id, uint32_t download_len);
@@ -70,24 +70,31 @@ int ce_send_fast(struct CE_handle *copyeng, qdf_nbuf_t msdu,
  * succeeds, that guarantees that the target has room to accept
  * the new tx frame.
  */
-#define ol_tx_prepare_ll(tx_desc, vdev, msdu, msdu_info)		\
-	do {								\
-		struct ol_txrx_pdev_t *pdev = vdev->pdev;		\
-		(msdu_info)->htt.info.frame_type = pdev->htt_pkt_type;	\
-		tx_desc = ol_tx_desc_ll(pdev, vdev, msdu, msdu_info);	\
-		if (qdf_unlikely(!tx_desc)) {				\
-			/*						\
-			 * If TSO packet, free associated		\
-			 * remaining TSO segment descriptors		\
-			 */						\
-			if (qdf_nbuf_is_tso(msdu))			\
-				ol_free_remaining_tso_segs(		\
-					vdev, msdu_info, true);		\
-			TXRX_STATS_MSDU_LIST_INCR(			\
-				pdev, tx.dropped.host_reject, msdu);	\
-			return msdu; /* the list of unaccepted MSDUs */	\
-		}							\
-	} while (0)
+static struct ol_tx_desc_t *
+ol_tx_prepare_ll(ol_txrx_vdev_handle vdev,
+		 qdf_nbuf_t msdu,
+		 struct ol_txrx_msdu_info_t *msdu_info)
+{
+	struct ol_tx_desc_t *tx_desc;
+	struct ol_txrx_pdev_t *pdev = vdev->pdev;
+
+	(msdu_info)->htt.info.frame_type = pdev->htt_pkt_type;
+	tx_desc = ol_tx_desc_ll(pdev, vdev, msdu, msdu_info);
+	if (qdf_unlikely(!tx_desc)) {
+		/*
+		 * If TSO packet, free associated
+		 * remaining TSO segment descriptors
+		 */
+		if (qdf_nbuf_is_tso(msdu))
+			ol_free_remaining_tso_segs(
+					vdev, msdu_info, true);
+		TXRX_STATS_MSDU_LIST_INCR(
+				pdev, tx.dropped.host_reject, msdu);
+		return NULL;
+	}
+
+	return tx_desc;
+}
 
 #if defined(FEATURE_TSO)
 void ol_free_remaining_tso_segs(ol_txrx_vdev_handle vdev,
@@ -248,15 +255,15 @@ qdf_nbuf_t ol_tx_data(ol_txrx_vdev_handle vdev, qdf_nbuf_t skb)
 	qdf_nbuf_t ret;
 
 	if (qdf_unlikely(!vdev)) {
-		QDF_TRACE(QDF_MODULE_ID_TXRX, QDF_TRACE_LEVEL_WARN,
+		QDF_TRACE(QDF_MODULE_ID_TXRX, QDF_TRACE_LEVEL_DEBUG,
 			"%s:vdev is null", __func__);
 		return skb;
-	} else {
-		pdev = vdev->pdev;
 	}
 
+	pdev = vdev->pdev;
+
 	if (qdf_unlikely(!pdev)) {
-		QDF_TRACE(QDF_MODULE_ID_TXRX, QDF_TRACE_LEVEL_WARN,
+		QDF_TRACE(QDF_MODULE_ID_TXRX, QDF_TRACE_LEVEL_DEBUG,
 			"%s:pdev is null", __func__);
 		return skb;
 	}
@@ -270,8 +277,7 @@ qdf_nbuf_t ol_tx_data(ol_txrx_vdev_handle vdev, qdf_nbuf_t skb)
 	qdf_nbuf_set_next(skb, NULL);
 	ret = OL_TX_SEND(vdev, skb);
 	if (ret) {
-		QDF_TRACE(QDF_MODULE_ID_TXRX, QDF_TRACE_LEVEL_WARN,
-			"%s: Failed to tx", __func__);
+		ol_txrx_dbg("%s: Failed to tx", __func__);
 		return ret;
 	}
 
@@ -293,8 +299,7 @@ qdf_nbuf_t ol_tx_send_ipa_data_frame(void *vdev,
 	qdf_nbuf_t ret;
 
 	if (qdf_unlikely(!pdev)) {
-		TXRX_PRINT(TXRX_PRINT_LEVEL_ERR,
-			"%s: pdev is NULL", __func__);
+		ol_txrx_err("%s: pdev is NULL", __func__);
 		return skb;
 	}
 
@@ -307,8 +312,7 @@ qdf_nbuf_t ol_tx_send_ipa_data_frame(void *vdev,
 	qdf_nbuf_set_next(skb, NULL);
 	ret = OL_TX_SEND((struct ol_txrx_vdev_t *)vdev, skb);
 	if (ret) {
-		TXRX_PRINT(TXRX_PRINT_LEVEL_WARN,
-			"%s: Failed to tx", __func__);
+		ol_txrx_dbg("%s: Failed to tx", __func__);
 		return ret;
 	}
 
@@ -327,12 +331,12 @@ qdf_nbuf_t ol_tx_send_ipa_data_frame(void *vdev,
  *
  * Return: None
  */
-static inline void ol_tx_tso_update_stats(struct ol_txrx_pdev_t *pdev ,
-					struct qdf_tso_info_t  *tso_info,
+static inline void ol_tx_tso_update_stats(struct ol_txrx_pdev_t *pdev,
+					struct qdf_tso_info_t *tso_info,
 					qdf_nbuf_t msdu,
 					uint32_t tso_msdu_idx)
 {
-	TXRX_STATS_TSO_HISTOGRAM(pdev,  tso_info->num_segs);
+	TXRX_STATS_TSO_HISTOGRAM(pdev, tso_info->num_segs);
 	TXRX_STATS_TSO_GSO_SIZE_UPDATE(pdev, tso_msdu_idx,
 					qdf_nbuf_tcp_tso_size(msdu));
 	TXRX_STATS_TSO_TOTAL_LEN_UPDATE(pdev,
@@ -385,7 +389,7 @@ qdf_nbuf_t ol_tx_ll(ol_txrx_vdev_handle vdev, qdf_nbuf_t msdu_list)
 	 */
 	while (msdu) {
 		qdf_nbuf_t next;
-		struct ol_tx_desc_t *tx_desc;
+		struct ol_tx_desc_t *tx_desc = NULL;
 		int segments = 1;
 
 		msdu_info.htt.info.ext_tid = qdf_nbuf_get_tid(msdu);
@@ -425,14 +429,16 @@ qdf_nbuf_t ol_tx_ll(ol_txrx_vdev_handle vdev, qdf_nbuf_t msdu_list)
 
 			segments--;
 
-			ol_tx_prepare_ll(tx_desc, vdev, msdu, &msdu_info);
+			tx_desc = ol_tx_prepare_ll(vdev, msdu, &msdu_info);
+			if (!tx_desc)
+				return msdu;
 
-			/**
-			* if this is a jumbo nbuf, then increment the number
-			* of nbuf users for each additional segment of the msdu.
-			* This will ensure that the skb is freed only after
-			* receiving tx completion for all segments of an nbuf
-			*/
+			/*
+			 * If this is a jumbo nbuf, then increment the number
+			 * of nbuf users for each additional segment of the msdu
+			 * This will ensure that the skb is freed only after
+			 * receiving tx completion for all segments of an nbuf.
+			 */
 			if (segments)
 				qdf_nbuf_inc_users(msdu);
 
@@ -483,11 +489,13 @@ qdf_nbuf_t ol_tx_ll(ol_txrx_vdev_handle vdev, qdf_nbuf_t msdu_list)
 	 */
 	while (msdu) {
 		qdf_nbuf_t next;
-		struct ol_tx_desc_t *tx_desc;
+		struct ol_tx_desc_t *tx_desc = NULL;
 
 		msdu_info.htt.info.ext_tid = qdf_nbuf_get_tid(msdu);
 		msdu_info.peer = NULL;
-		ol_tx_prepare_ll(tx_desc, vdev, msdu, &msdu_info);
+		tx_desc = ol_tx_prepare_ll(vdev, msdu, &msdu_info);
+		if (!tx_desc)
+			return msdu;
 
 		TXRX_STATS_MSDU_INCR(vdev->pdev, tx.from_stack, msdu);
 
@@ -556,6 +564,10 @@ ol_tx_prepare_ll_fast(struct ol_txrx_pdev_t *pdev,
 
 	htt_tx_desc = tx_desc->htt_tx_desc;
 
+#if defined(HELIUMPLUS)
+	qdf_mem_zero(tx_desc->htt_frag_desc, sizeof(struct msdu_ext_desc_t));
+#endif
+
 	/* Make sure frags num is set to 0 */
 	/*
 	 * Do this here rather than in hardstart, so
@@ -623,7 +635,7 @@ ol_tx_prepare_ll_fast(struct ol_txrx_pdev_t *pdev,
 			htt_tx_desc_frag(pdev->htt_pdev, tx_desc->htt_frag_desc,
 					 i - 1, frag_paddr, frag_len);
 #if defined(HELIUMPLUS_DEBUG)
-			qdf_print("%s:%d: htt_fdesc=%p frag=%d frag_paddr=0x%0llx len=%zu",
+			qdf_print("%s:%d: htt_fdesc=%pK frag=%d frag_paddr=0x%0llx len=%zu",
 				  __func__, __LINE__, tx_desc->htt_frag_desc,
 				  i-1, frag_paddr, frag_len);
 			ol_txrx_dump_pkt(netbuf, frag_paddr, 64);
@@ -636,15 +648,15 @@ ol_tx_prepare_ll_fast(struct ol_txrx_pdev_t *pdev,
 	}
 
 	/*
-	 *  Do we want to turn on word_stream bit-map here ? For linux, non-TSO
-	 *  this is not required. We still have to mark the swap bit correctly,
-	 *  when posting to the ring
+	 * Do we want to turn on word_stream bit-map here ? For linux, non-TSO
+	 * this is not required. We still have to mark the swap bit correctly,
+	 * when posting to the ring
 	 */
 	/* Check to make sure, data download length is correct */
 
 	/*
 	 * TODO : Can we remove this check and always download a fixed length ?
-	 * */
+	 */
 
 
 	if (QDF_NBUF_CB_TX_EXTRA_FRAG_FLAGS_EXT_HEADER(msdu))
@@ -700,7 +712,7 @@ ol_tx_ll_fast(ol_txrx_vdev_handle vdev, qdf_nbuf_t msdu_list)
 		msdu_info.peer = NULL;
 
 		if (qdf_unlikely(ol_tx_prepare_tso(vdev, msdu, &msdu_info))) {
-			qdf_print("ol_tx_prepare_tso failed\n");
+			ol_txrx_dbg("ol_tx_prepare_tso failed\n");
 			TXRX_STATS_MSDU_LIST_INCR(vdev->pdev,
 				 tx.dropped.host_reject, msdu);
 			return msdu;
@@ -920,9 +932,11 @@ ol_tx_ll_fast(ol_txrx_vdev_handle vdev, qdf_nbuf_t msdu_list)
 			next = qdf_nbuf_next(msdu);
 			if ((0 == ce_send_fast(pdev->ce_tx_hdl, msdu,
 					       ep_id, pkt_download_len))) {
-				/* The packet could not be sent */
-				/* Free the descriptor, return the packet to the
-				 * caller */
+				/*
+				 * The packet could not be sent
+				 * Free the descriptor, return the packet to the
+				 * caller
+				 */
 				ol_tx_desc_free(pdev, tx_desc);
 				return msdu;
 			}
@@ -995,6 +1009,7 @@ static void ol_tx_vdev_ll_pause_queue_send_base(struct ol_txrx_vdev_t *vdev)
 		OL_TX_VDEV_PAUSE_QUEUE_SEND_MARGIN;
 	while (max_to_accept > 0 && vdev->ll_pause.txq.depth) {
 		qdf_nbuf_t tx_msdu;
+
 		max_to_accept--;
 		vdev->ll_pause.txq.depth--;
 		tx_msdu = vdev->ll_pause.txq.head;
@@ -1041,6 +1056,7 @@ ol_tx_vdev_pause_queue_append(struct ol_txrx_vdev_t *vdev,
 	while (msdu_list &&
 	       vdev->ll_pause.txq.depth < vdev->ll_pause.max_q_depth) {
 		qdf_nbuf_t next = qdf_nbuf_next(msdu_list);
+
 		QDF_NBUF_UPDATE_TX_PKT_COUNT(msdu_list,
 					     QDF_NBUF_TX_PKT_TXRX_ENQUEUE);
 		DPTRACE(qdf_dp_trace(msdu_list,
@@ -1105,23 +1121,31 @@ qdf_nbuf_t ol_tx_ll_queue(ol_txrx_vdev_handle vdev, qdf_nbuf_t msdu_list)
 		if (vdev->ll_pause.txq.depth > 0 ||
 		    vdev->pdev->tx_throttle.current_throttle_level !=
 		    THROTTLE_LEVEL_0) {
-			/* not paused, but there is a backlog of frms
-			   from a prior pause or throttle off phase */
+			/*
+			 * not paused, but there is a backlog of frms
+			 * from a prior pause or throttle off phase
+			 */
 			msdu_list = ol_tx_vdev_pause_queue_append(
 				vdev, msdu_list, 0);
-			/* if throttle is disabled or phase is "on",
-			   send the frame */
+			/*
+			 * if throttle is disabled or phase is "on",
+			 * send the frame
+			 */
 			if (vdev->pdev->tx_throttle.current_throttle_level ==
 			    THROTTLE_LEVEL_0 ||
 			    vdev->pdev->tx_throttle.current_throttle_phase ==
 			    THROTTLE_PHASE_ON) {
-				/* send as many frames as possible
-				   from the vdevs backlog */
+				/*
+				 * send as many frames as possible
+				 * from the vdevs backlog
+				 */
 				ol_tx_vdev_ll_pause_queue_send_base(vdev);
 			}
 		} else {
-			/* not paused, no throttle and no backlog -
-			   send the new frames */
+			/*
+			 * not paused, no throttle and no backlog -
+			 * send the new frames
+			 */
 			msdu_list = ol_tx_ll_wrapper(vdev, msdu_list);
 		}
 	}
@@ -1150,11 +1174,13 @@ void ol_tx_pdev_ll_pause_queue_send_all(struct ol_txrx_pdev_t *pdev)
 
 	/* round robin through the vdev queues for the given pdev */
 
-	/* Potential improvement: download several frames from the same vdev
-	   at a time, since it is more likely that those frames could be
-	   aggregated together, remember which vdev was serviced last,
-	   so the next call this function can resume the round-robin
-	   traversing where the current invocation left off */
+	/*
+	 * Potential improvement: download several frames from the same vdev
+	 * at a time, since it is more likely that those frames could be
+	 * aggregated together, remember which vdev was serviced last,
+	 * so the next call this function can resume the round-robin
+	 * traversing where the current invocation left off
+	 */
 	do {
 		more = 0;
 		TAILQ_FOREACH(vdev, &pdev->vdev_list, vdev_list_elem) {
@@ -1275,13 +1301,15 @@ ol_tx_non_std_ll(ol_txrx_vdev_handle vdev,
 	 */
 	while (msdu) {
 		qdf_nbuf_t next;
-		struct ol_tx_desc_t *tx_desc;
+		struct ol_tx_desc_t *tx_desc = NULL;
 
 		msdu_info.htt.info.ext_tid = qdf_nbuf_get_tid(msdu);
 		msdu_info.peer = NULL;
 		msdu_info.tso_info.is_tso = 0;
 
-		ol_tx_prepare_ll(tx_desc, vdev, msdu, &msdu_info);
+		tx_desc = ol_tx_prepare_ll(vdev, msdu, &msdu_info);
+		if (!tx_desc)
+			return msdu;
 
 		/*
 		 * The netbuf may get linked into a different list inside the
@@ -1321,20 +1349,34 @@ ol_tx_non_std_ll(ol_txrx_vdev_handle vdev,
 }
 
 #ifdef QCA_SUPPORT_SW_TXRX_ENCAP
-#define OL_TX_ENCAP_WRAPPER(pdev, vdev, tx_desc, msdu, tx_msdu_info) \
-	do { \
-		if (OL_TX_ENCAP(vdev, tx_desc, msdu, &tx_msdu_info) != A_OK) { \
-			qdf_atomic_inc(&pdev->tx_queue.rsrc_cnt); \
-			ol_tx_desc_frame_free_nonstd(pdev, tx_desc, 1);	\
-			if (tx_msdu_info.peer) { \
-				/* remove the peer reference added above */ \
-				OL_TXRX_PEER_UNREF_DELETE(tx_msdu_info.peer); \
-			} \
-			goto MSDU_LOOP_BOTTOM; \
-		} \
-	} while (0)
+static inline int ol_tx_encap_wrapper(struct ol_txrx_pdev_t *pdev,
+				      ol_txrx_vdev_handle vdev,
+				      struct ol_tx_desc_t *tx_desc,
+				      qdf_nbuf_t msdu,
+				      struct ol_txrx_msdu_info_t *tx_msdu_info)
+{
+	if (OL_TX_ENCAP(vdev, tx_desc, msdu, tx_msdu_info) != A_OK) {
+		qdf_atomic_inc(&pdev->tx_queue.rsrc_cnt);
+		ol_tx_desc_frame_free_nonstd(pdev, tx_desc, 1);
+		if (tx_msdu_info->peer) {
+			/* remove the peer reference added above */
+			OL_TXRX_PEER_UNREF_DELETE(tx_msdu_info->peer);
+		}
+		return -EINVAL;
+	}
+
+	return 0;
+}
 #else
-#define OL_TX_ENCAP_WRAPPER(pdev, vdev, tx_desc, msdu, tx_msdu_info) /* no-op */
+static inline int ol_tx_encap_wrapper(struct ol_txrx_pdev_t *pdev,
+				      ol_txrx_vdev_handle vdev,
+				      struct ol_tx_desc_t *tx_desc,
+				      qdf_nbuf_t msdu,
+				      struct ol_txrx_msdu_info_t *tx_msdu_info)
+{
+	/* no-op */
+	return 0;
+}
 #endif
 
 /* tx filtering is handled within the target FW */
@@ -1457,8 +1499,7 @@ struct ol_tx_desc_t *ol_tx_hl_desc_alloc(struct ol_txrx_pdev_t *pdev,
 		    (QDF_NBUF_CB_GET_PACKET_TYPE(msdu) ==
 			QDF_NBUF_CB_PACKET_TYPE_EAPOL)) {
 			tx_desc = ol_tx_desc_hl(pdev, vdev, msdu, msdu_info);
-			TXRX_PRINT(TXRX_PRINT_LEVEL_ERR,
-				   "Provided tx descriptor from reserve pool for DHCP/EAPOL\n");
+			ol_txrx_info("Provided tx descriptor from reserve pool for DHCP/EAPOL\n");
 		}
 	}
 	return tx_desc;
@@ -1472,6 +1513,7 @@ struct ol_tx_desc_t *ol_tx_hl_desc_alloc(struct ol_txrx_pdev_t *pdev,
 	struct ol_txrx_msdu_info_t *msdu_info)
 {
 	struct ol_tx_desc_t *tx_desc = NULL;
+
 	tx_desc = ol_tx_desc_hl(pdev, vdev, msdu, msdu_info);
 	return tx_desc;
 }
@@ -1498,6 +1540,7 @@ ol_txrx_mgmt_tx_desc_alloc(
 	struct ol_txrx_msdu_info_t *tx_msdu_info)
 {
 	struct ol_tx_desc_t *tx_desc;
+
 	tx_msdu_info->htt.action.tx_comp_req = 1;
 	tx_desc = ol_tx_desc_hl(pdev, vdev, tx_mgmt_frm, tx_msdu_info);
 	return tx_desc;
@@ -1525,14 +1568,16 @@ int ol_txrx_mgmt_send_frame(
 {
 	struct ol_txrx_pdev_t *pdev = vdev->pdev;
 	struct ol_tx_frms_queue_t *txq;
+
 	/*
 	 * 1.  Look up the peer and queue the frame in the peer's mgmt queue.
 	 * 2.  Invoke the download scheduler.
 	 */
 	txq = ol_tx_classify_mgmt(vdev, tx_desc, tx_mgmt_frm, tx_msdu_info);
 	if (!txq) {
-		/*TXRX_STATS_MSDU_LIST_INCR(vdev->pdev, tx.dropped.no_txq,
-								msdu);*/
+		/* TXRX_STATS_MSDU_LIST_INCR(vdev->pdev, tx.dropped.no_txq,
+		 *			     msdu);
+		 */
 		qdf_atomic_inc(&pdev->tx_queue.rsrc_cnt);
 		ol_tx_desc_frame_free_nonstd(vdev->pdev, tx_desc,
 					     1 /* error */);
@@ -1581,6 +1626,7 @@ ol_txrx_mgmt_tx_desc_alloc(
 	struct ol_txrx_msdu_info_t *tx_msdu_info)
 {
 	struct ol_tx_desc_t *tx_desc;
+
 	/* For LL tx_comp_req is not used so initialized to 0 */
 	tx_msdu_info->htt.action.tx_comp_req = 0;
 	tx_desc = ol_tx_desc_ll(pdev, vdev, tx_mgmt_frm, tx_msdu_info);
@@ -1592,7 +1638,8 @@ ol_txrx_mgmt_tx_desc_alloc(
 	 */
 #if defined(HELIUMPLUS)
 	/* ol_txrx_dump_frag_desc("ol_txrx_mgmt_send(): after ol_tx_desc_ll",
-	   tx_desc); */
+	 *			  tx_desc);
+	 */
 #endif /* defined(HELIUMPLUS) */
 	if (tx_desc) {
 		/*
@@ -1624,6 +1671,7 @@ int ol_txrx_mgmt_send_frame(
 	uint16_t chanfreq)
 {
 	struct ol_txrx_pdev_t *pdev = vdev->pdev;
+
 	htt_tx_desc_set_chanfreq(tx_desc->htt_tx_desc, chanfreq);
 	QDF_NBUF_CB_TX_PACKET_TRACK(tx_desc->netbuf) =
 					QDF_NBUF_TX_PKT_MGMT_TRACK;
@@ -1654,9 +1702,8 @@ ol_tx_hl_base(
 	qdf_nbuf_t msdu = msdu_list;
 	struct ol_txrx_msdu_info_t tx_msdu_info;
 	struct ocb_tx_ctrl_hdr_t tx_ctrl;
-
 	htt_pdev_handle htt_pdev = pdev->htt_pdev;
-	tx_msdu_info.peer = NULL;
+
 	tx_msdu_info.tso_info.is_tso = 0;
 
 	/*
@@ -1671,7 +1718,7 @@ ol_tx_hl_base(
 		struct ol_tx_desc_t *tx_desc = NULL;
 
 		qdf_mem_zero(&tx_ctrl, sizeof(tx_ctrl));
-
+		tx_msdu_info.peer = NULL;
 		/*
 		 * The netbuf will get stored into a (peer-TID) tx queue list
 		 * inside the ol_tx_classify_store function or else dropped,
@@ -1737,13 +1784,17 @@ ol_tx_hl_base(
 					 */
 					goto MSDU_LOOP_BOTTOM;
 				}
-			/* If the TX control header was not found,
-			just use the defaults */
+			/*
+			 * If the TX control header was not found,
+			 * just use the defaults
+			 */
 			if (!tx_ctrl_header_found && vdev->ocb_def_tx_param)
 				qdf_mem_copy(&tx_ctrl, vdev->ocb_def_tx_param,
 				sizeof(tx_ctrl));
-			/* If the TX control header was found, merge the
-				defaults into it */
+			/*
+			 * If the TX control header was found, merge the
+			 * defaults into it
+			 */
 			else if (tx_ctrl_header_found && vdev->ocb_def_tx_param)
 				merge_ocb_tx_ctrl_hdr(&tx_ctrl,
 						vdev->ocb_def_tx_param);
@@ -1754,17 +1805,21 @@ ol_tx_hl_base(
 							&tx_msdu_info);
 
 			if ((!txq) || TX_FILTER_CHECK(&tx_msdu_info)) {
-				/* drop this frame,
+				/*
+				 * drop this frame,
 				 * but try sending subsequent frames
 				 */
 				/*TXRX_STATS_MSDU_LIST_INCR(pdev,
-							tx.dropped.no_txq,
-							msdu);*/
+				 *			tx.dropped.no_txq,
+				 *			msdu);
+				 */
 				qdf_atomic_inc(&pdev->tx_queue.rsrc_cnt);
 				ol_tx_desc_frame_free_nonstd(pdev, tx_desc, 1);
 				if (tx_msdu_info.peer) {
-					/* remove the peer reference
-					 * added above */
+					/*
+					 * remove the peer reference
+					 * added above
+					 */
 					OL_TXRX_PEER_UNREF_DELETE(
 							tx_msdu_info.peer);
 				}
@@ -1772,8 +1827,10 @@ ol_tx_hl_base(
 			}
 
 			if (tx_msdu_info.peer) {
-				/*If the state is not associated then drop all
-				 *the data packets received for that peer*/
+				/*
+				 * If the state is not associated then drop all
+				 * the data packets received for that peer
+				 */
 				if (tx_msdu_info.peer->state ==
 						OL_TXRX_PEER_STATE_DISC) {
 					qdf_atomic_inc(
@@ -1820,8 +1877,9 @@ ol_tx_hl_base(
 			 * encap, it performs encap, and if an error is
 			 * encountered, jumps to the MSDU_LOOP_BOTTOM label.
 			 */
-			OL_TX_ENCAP_WRAPPER(pdev, vdev, tx_desc, msdu,
-					    tx_msdu_info);
+			if (ol_tx_encap_wrapper(pdev, vdev, tx_desc, msdu,
+						&tx_msdu_info))
+				goto MSDU_LOOP_BOTTOM;
 
 			/* initialize the HW tx descriptor */
 			htt_tx_desc_init(
@@ -1859,6 +1917,7 @@ ol_tx_hl(ol_txrx_vdev_handle vdev, qdf_nbuf_t msdu_list)
 {
 	struct ol_txrx_pdev_t *pdev = vdev->pdev;
 	int tx_comp_req = pdev->cfg.default_tx_comp_req;
+
 	return ol_tx_hl_base(vdev, OL_TX_SPEC_STD, msdu_list, tx_comp_req);
 }
 
@@ -1915,6 +1974,7 @@ ol_txrx_data_tx_cb_set(ol_txrx_vdev_handle vdev,
 		       ol_txrx_data_tx_cb callback, void *ctxt)
 {
 	struct ol_txrx_pdev_t *pdev = vdev->pdev;
+
 	pdev->tx_data_callback.func = callback;
 	pdev->tx_data_callback.ctxt = ctxt;
 }
@@ -1957,16 +2017,18 @@ void ol_txrx_dump_frag_desc(char *msg, struct ol_tx_desc_t *tx_desc)
 	uint32_t                *frag_ptr_i_p;
 	int                     i;
 
-	qdf_print("OL TX Descriptor 0x%p msdu_id %d\n",
+	qdf_print("OL TX Descriptor 0x%pK msdu_id %d\n",
 		 tx_desc, tx_desc->id);
-	qdf_print("HTT TX Descriptor vaddr: 0x%p paddr: %pad",
+	qdf_print("HTT TX Descriptor vaddr: 0x%pK paddr: %pad",
 		 tx_desc->htt_tx_desc, &tx_desc->htt_tx_desc_paddr);
-	qdf_print("%s %d: Fragment Descriptor 0x%p (paddr=%pad)",
+	qdf_print("%s %d: Fragment Descriptor 0x%pK (paddr=%pad)",
 		 __func__, __LINE__, tx_desc->htt_frag_desc,
 		 &tx_desc->htt_frag_desc_paddr);
 
-	/* it looks from htt_tx_desc_frag() that tx_desc->htt_frag_desc
-	   is already de-referrable (=> in virtual address space) */
+	/*
+	 * it looks from htt_tx_desc_frag() that tx_desc->htt_frag_desc
+	 * is already de-referrable (=> in virtual address space)
+	 */
 	frag_ptr_i_p = tx_desc->htt_frag_desc;
 
 	/* Dump 6 words of TSO flags */
@@ -1984,10 +2046,9 @@ void ol_txrx_dump_frag_desc(char *msg, struct ol_tx_desc_t *tx_desc)
 		i++;
 		if (i > 5) /* max 6 times: frag_ptr0 to frag_ptr5 */
 			break;
-		else  /* jump to next  pointer - skip length */
-			frag_ptr_i_p += 2;
+		/* jump to next  pointer - skip length */
+		frag_ptr_i_p += 2;
 	}
-	return;
 }
 #endif /* HELIUMPLUS */
 
@@ -2018,6 +2079,7 @@ ol_txrx_mgmt_send_ext(ol_txrx_vdev_handle vdev,
 	struct ol_tx_desc_t *tx_desc;
 	struct ol_txrx_msdu_info_t tx_msdu_info;
 	int result = 0;
+
 	tx_msdu_info.tso_info.is_tso = 0;
 
 	tx_msdu_info.htt.action.use_6mbps = use_6mbps;
@@ -2086,7 +2148,7 @@ ol_txrx_mgmt_send_ext(ol_txrx_vdev_handle vdev,
 qdf_nbuf_t ol_tx_reinject(struct ol_txrx_vdev_t *vdev,
 			  qdf_nbuf_t msdu, uint16_t peer_id)
 {
-	struct ol_tx_desc_t *tx_desc;
+	struct ol_tx_desc_t *tx_desc = NULL;
 	struct ol_txrx_msdu_info_t msdu_info;
 
 	msdu_info.htt.info.l2_hdr_type = vdev->pdev->htt_pkt_type;
@@ -2095,7 +2157,10 @@ qdf_nbuf_t ol_tx_reinject(struct ol_txrx_vdev_t *vdev,
 	msdu_info.htt.action.tx_comp_req = 0;
 	msdu_info.tso_info.is_tso = 0;
 
-	ol_tx_prepare_ll(tx_desc, vdev, msdu, &msdu_info);
+	tx_desc = ol_tx_prepare_ll(vdev, msdu, &msdu_info);
+	if (!tx_desc)
+		return msdu;
+
 	HTT_TX_DESC_POSTPONED_SET(*((uint32_t *) (tx_desc->htt_tx_desc)), true);
 
 	htt_tx_desc_set_peer_id(tx_desc->htt_tx_desc, peer_id);
@@ -2120,8 +2185,7 @@ void ol_tso_seg_list_init(struct ol_txrx_pdev_t *pdev, uint32_t num_seg)
 
 	/* Host should not allocate any c_element. */
 	if (num_seg <= 0) {
-		TXRX_PRINT(TXRX_PRINT_LEVEL_ERR,
-			   "%s: ERROR: Pool size passed is 0",
+		ol_txrx_err("%s: ERROR: Pool size passed is 0",
 			   __func__);
 		QDF_BUG(0);
 		pdev->tso_seg_pool.pool_size = i;
@@ -2133,8 +2197,7 @@ void ol_tso_seg_list_init(struct ol_txrx_pdev_t *pdev, uint32_t num_seg)
 	pdev->tso_seg_pool.freelist = c_element;
 	for (i = 0; i < (num_seg - 1); i++) {
 		if (qdf_unlikely(!c_element)) {
-			TXRX_PRINT(TXRX_PRINT_LEVEL_ERR,
-				   "%s: ERROR: c_element NULL for seg %d",
+			ol_txrx_err("%s: ERROR: c_element NULL for seg %d",
 				   __func__, i);
 			QDF_BUG(0);
 			pdev->tso_seg_pool.pool_size = i;
@@ -2159,8 +2222,7 @@ void ol_tso_seg_list_init(struct ol_txrx_pdev_t *pdev, uint32_t num_seg)
 	 * first c_element if num_seg is equal to 1.
 	 */
 	if (qdf_unlikely(!c_element)) {
-		TXRX_PRINT(TXRX_PRINT_LEVEL_ERR,
-			   "%s: ERROR: c_element NULL for seg %d",
+		ol_txrx_err("%s: ERROR: c_element NULL for seg %d",
 			   __func__, i);
 		QDF_BUG(0);
 		pdev->tso_seg_pool.pool_size = i;
@@ -2242,8 +2304,7 @@ void ol_tso_num_seg_list_init(struct ol_txrx_pdev_t *pdev, uint32_t num_seg)
 
 	/* Host should not allocate any c_element. */
 	if (num_seg <= 0) {
-		TXRX_PRINT(TXRX_PRINT_LEVEL_ERR,
-			   "%s: ERROR: Pool size passed is 0",
+		ol_txrx_err("%s: ERROR: Pool size passed is 0",
 			   __func__);
 		QDF_BUG(0);
 		pdev->tso_num_seg_pool.num_seg_pool_size = i;
@@ -2255,8 +2316,7 @@ void ol_tso_num_seg_list_init(struct ol_txrx_pdev_t *pdev, uint32_t num_seg)
 	pdev->tso_num_seg_pool.freelist = c_element;
 	for (i = 0; i < (num_seg - 1); i++) {
 		if (qdf_unlikely(!c_element)) {
-			TXRX_PRINT(TXRX_PRINT_LEVEL_ERR,
-				"%s: ERROR: c_element NULL for num of seg %d",
+			ol_txrx_err("%s: ERROR: c_element NULL for num of seg %d",
 				__func__, i);
 			QDF_BUG(0);
 			pdev->tso_num_seg_pool.num_seg_pool_size = i;
@@ -2274,8 +2334,7 @@ void ol_tso_num_seg_list_init(struct ol_txrx_pdev_t *pdev, uint32_t num_seg)
 	 * first c_element if num_seg is equal to 1.
 	 */
 	if (qdf_unlikely(!c_element)) {
-		TXRX_PRINT(TXRX_PRINT_LEVEL_ERR,
-			   "%s: ERROR: c_element NULL for num of seg %d",
+		ol_txrx_err("%s: ERROR: c_element NULL for num of seg %d",
 			   __func__, i);
 		QDF_BUG(0);
 		pdev->tso_num_seg_pool.num_seg_pool_size = i;

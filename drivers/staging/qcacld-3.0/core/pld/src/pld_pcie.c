@@ -201,7 +201,7 @@ static void pld_pcie_uevent(struct pci_dev *pdev, uint32_t status)
 
 	data.uevent = status;
 
-	if (!pld_context->ops->uevent)
+	if (pld_context->ops->uevent)
 		pld_context->ops->uevent(&pdev->dev, &data);
 
 	return;
@@ -375,6 +375,7 @@ void pld_pcie_unregister_driver(void)
 int pld_pcie_get_ce_id(int irq)
 {
 	int ce_id = irq - 100;
+
 	if (ce_id < CE_COUNT_MAX && ce_id >= 0)
 		return ce_id;
 

@@ -192,6 +192,7 @@ static int hdd_lro_desc_find(struct hdd_lro_s *lro_info,
 	/* Check if this flow exists in the descriptor list */
 	list_for_each(ptr, &lro_hash_table->lro_desc_list) {
 		struct net_lro_desc *tmp_lro_desc = NULL;
+
 		entry = list_entry(ptr, struct hdd_lro_desc_entry, lro_node);
 		tmp_lro_desc = entry->lro_desc;
 		if (tmp_lro_desc->active) {
@@ -417,14 +418,14 @@ int hdd_lro_init(hdd_context_t *hdd_ctx)
 
 	if ((!hdd_ctx->config->lro_enable) &&
 	    (hdd_napi_enabled(HDD_NAPI_ANY) == 0)) {
-		hdd_warn("LRO and NAPI are both disabled.");
+		hdd_warn("LRO and NAPI are both disabled");
 		return 0;
 	}
 
 	lro_config.lro_enable = 1;
 	lro_config.tcp_flag = TCPHDR_ACK;
 	lro_config.tcp_flag_mask = TCPHDR_FIN | TCPHDR_SYN | TCPHDR_RST |
-		TCPHDR_ACK | TCPHDR_URG | TCPHDR_ECE | TCPHDR_CWR;
+		TCPHDR_PSH | TCPHDR_ACK | TCPHDR_URG | TCPHDR_ECE | TCPHDR_CWR;
 
 	get_random_bytes(lro_config.toeplitz_hash_ipv4,
 		 (sizeof(lro_config.toeplitz_hash_ipv4[0]) *
@@ -457,9 +458,9 @@ static void *hdd_init_lro_mgr(void)
 		return NULL;
 	}
 	/*
-	* Allocate all the LRO data structures at once and then carve
-	* them up as needed
-	*/
+	 * Allocate all the LRO data structures at once and then carve
+	 * them up as needed
+	 */
 	lro_info_sz = sizeof(struct hdd_lro_s);
 	lro_mgr_sz = sizeof(struct net_lro_mgr);
 	desc_arr_sz = (LRO_DESC_POOL_SZ * sizeof(struct net_lro_desc));
@@ -528,7 +529,7 @@ int hdd_lro_enable(hdd_context_t *hdd_ctx, hdd_adapter_t *adapter)
 
 	if (!hdd_ctx->config->lro_enable ||
 		 QDF_STA_MODE != adapter->device_mode) {
-		hdd_info("LRO Disabled");
+		hdd_debug("LRO Disabled");
 		return 0;
 	}
 
@@ -547,7 +548,7 @@ int hdd_lro_enable(hdd_context_t *hdd_ctx, hdd_adapter_t *adapter)
 		hdd_reset_tcp_delack(hdd_ctx);
 	}
 
-	hdd_info("LRO Enabled");
+	hdd_debug("LRO Enabled");
 
 	return 0;
 }
@@ -566,7 +567,7 @@ void hdd_lro_create(void)
 static void hdd_deinit_lro_mgr(void *lro_info)
 {
 	if (lro_info) {
-		hdd_notice("LRO instance %p is being freed", lro_info);
+		hdd_debug("LRO instance %pK is being freed", lro_info);
 		qdf_mem_free(lro_info);
 	}
 }
@@ -598,8 +599,6 @@ void hdd_lro_destroy(void)
 {
 	/* Deregister the flush callback */
 	ol_deregister_lro_flush_cb(hdd_deinit_lro_mgr);
-
-	return;
 }
 
 /**
@@ -663,9 +662,8 @@ enum hdd_lro_rx_status hdd_lro_rx(hdd_context_t *hdd_ctx,
 			lro_receive_skb_ext(lro_info->lro_mgr, skb,
 				 (void *)adapter, &hdd_lro_info);
 
-			if (!hdd_lro_info.lro_desc->active) {
+			if (!hdd_lro_info.lro_desc->active)
 				hdd_lro_desc_free(lro_desc, lro_info);
-			}
 
 			status = HDD_LRO_RX;
 		} else {
@@ -684,7 +682,7 @@ enum hdd_lro_rx_status hdd_lro_rx(hdd_context_t *hdd_ctx,
  */
 void hdd_lro_display_stats(hdd_context_t *hdd_ctx)
 {
-	hdd_err("LRO stats is broken, will fix it");
+	hdd_debug("LRO stats is broken, will fix it");
 }
 
 /**
@@ -696,7 +694,7 @@ void hdd_lro_display_stats(hdd_context_t *hdd_ctx)
 void hdd_enable_lro_in_concurrency(hdd_context_t *hdd_ctx)
 {
 	if (hdd_ctx->config->enable_tcp_delack) {
-		hdd_info("Disable TCP delack as LRO is enabled");
+		hdd_debug("Disable TCP delack as LRO is enabled");
 		hdd_ctx->config->enable_tcp_delack = 0;
 		hdd_reset_tcp_delack(hdd_ctx);
 	}
@@ -714,7 +712,7 @@ void hdd_disable_lro_in_concurrency(hdd_context_t *hdd_ctx)
 	if (!hdd_ctx->config->enable_tcp_delack) {
 		struct wlan_rx_tp_data rx_tp_data = {0};
 
-		hdd_info("Enable TCP delack as LRO disabled in concurrency");
+		hdd_debug("Enable TCP delack as LRO disabled in concurrency");
 		rx_tp_data.rx_tp_flags |= TCP_DEL_ACK_IND;
 		rx_tp_data.level = hdd_ctx->cur_rx_level;
 		wlan_hdd_send_svc_nlink_msg(hdd_ctx->radio_index,

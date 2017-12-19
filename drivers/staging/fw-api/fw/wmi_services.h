@@ -85,7 +85,13 @@ typedef  enum  {
     WMI_SERVICE_BATCH_SCAN=44,              /* Service to support batch scan */
     WMI_SERVICE_QPOWER=45,                  /* QPower service */
     WMI_SERVICE_PLMREQ=46,
-    WMI_SERVICE_THERMAL_MGMT=47,            /* thermal throttling support */
+    WMI_SERVICE_THERMAL_MGMT=47,            /* thermal throttling support,
+                                             * compared with
+                                             * WMI_SERVICE_THERM_THROT,
+                                             * this service only reports
+                                             * current temperature to host,
+                                             * and host will do the thermal
+                                             * throttling. */
     WMI_SERVICE_RMC=48,                     /* RMC support */
     WMI_SERVICE_MHF_OFFLOAD=49,             /* multi-hop forwarding offload */
     WMI_SERVICE_COEX_SAR=50,                /* target support SAR tx limit from WMI_PDEV_PARAM_TXPOWER_LIMITxG */
@@ -211,6 +217,25 @@ typedef  enum  {
     WMI_SERVICE_TX_PPDU_INFO_STATS_SUPPORT=129, /* support to report tx ppdu info stats via htt events */
     WMI_SERVICE_VDEV_LIMIT_OFFCHAN_SUPPORT=130, /* support to report the offchannel duration limiting capability on connected interface */
     WMI_SERVICE_FILS_SUPPORT=131, /* support for FILS */
+    WMI_SERVICE_WLAN_OIC_PING_OFFLOAD=132, /* Support for wlan OIC ping service */
+    WMI_SERVICE_WLAN_DHCP_RENEW=133, /* Support for wlan DHCP Renew service */
+    WMI_SERVICE_MAWC_SUPPORT = 134, /* Support for MAWC service */
+    WMI_SERVICE_VDEV_LATENCY_CONFIG=135, /* support for vdev latency config */
+    WMI_SERVICE_PDEV_UPDATE_CTLTABLE_SUPPORT=136, /* support for pdev update ctl table */
+    WMI_SERVICE_PKTLOG_SUPPORT_OVER_HTT=137, /* upload pktlog data over HTT communication channel */
+    WMI_SERVICE_VDEV_MULTI_GROUP_KEY_SUPPORT=138, /* Support for vdev level multi group key */
+    WMI_SERVICE_SCAN_PHYMODE_SUPPORT=139, /* Support for phymode also with channel in offchan WMI_START_SCAN_CMDID */
+    WMI_SERVICE_THERM_THROT = 140, /* Support thermal cfg and indication on AP.
+                                    * Compared with WMI_SERVICE_THERMAL_MGMT,
+                                    * this service is to allow thermal tool to
+                                    * configure thermal throttling threshold
+                                    * for different levels and pass down duty
+                                    * cycle value. FW will also report thermal
+                                    * throttling status to host through this
+                                    * service. */
+    WMI_SERVICE_BCN_OFFLOAD_START_STOP_SUPPORT=141, /* support dynamically enabling / disabling beacon tx offload */
+    WMI_SERVICE_WOW_WAKEUP_BY_TIMER_PATTERN=142, /* fw to support waking up host from wow pattern timer */
+
     /******* ADD NEW SERVICES HERE *******/
 
     WMI_MAX_EXT_SERVICE
