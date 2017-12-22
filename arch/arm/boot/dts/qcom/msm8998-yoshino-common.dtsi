@@ -41,7 +41,7 @@
 	android {
 		fstab {
 			vendor {
-				fsmgr_flags = "wait,verify=/dev/block/platform/soc/1da4000.ufshc/by-name/fsmetadata";
+				fsmgr_flags = "wait";
 			};
 
 			system {
