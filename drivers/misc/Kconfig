@@ -576,14 +576,23 @@ config MEMORY_STATE_TIME
 	  Memory time statistics exported to /sys/kernel/memory_state_time
 
 config NFC_PN547
-	tristate "NFC driver for PN547"
+	bool "NXP PN547 NFC Controller Driver"
 	depends on I2C
 	default n
 	help
-	  his option enables device driver for PN547.
-	  GPIO, and PMIC GPIO configurations are controlled.
-	  The sysfs files provides the interface to send and receive
-	  the data, response and notification.
+	  NXP PN547 Near Field Communication controller support.
+	  This option enables device driver support for the NFC.
+	  It is used by many services. NFC is fully controlled using I2C
+	  to communicate the AP chip.
+
+config NFC_PN547_PMC_CLK_REQ
+	bool "NXP PN547 NFC Controller Driver"
+	depends on I2C
+	default n
+	help
+	  PM8941 Clock request for NXP PN547 Near Field
+	  Communication controller support.
+	  This option enables d1 clock for NFC.
 
 config LDO_VIBRATOR
 	tristate "LDO Vibrator"
