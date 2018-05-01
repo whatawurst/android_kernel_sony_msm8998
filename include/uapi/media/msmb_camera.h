@@ -52,7 +52,9 @@
 #define MSM_CAMERA_SUBDEV_IR_CUT       18
 #define MSM_CAMERA_SUBDEV_EXT          19
 #define MSM_CAMERA_SUBDEV_TOF          20
+#ifndef CONFIG_SONY_CAM_V4L2
 #define MSM_CAMERA_SUBDEV_LASER_LED    21
+#endif
 #define MSM_MAX_CAMERA_SENSORS  5
 
 /* The below macro is defined to put an upper limit on maximum

@@ -297,6 +297,7 @@ static int32_t msm_sensor_fill_actuator_subdevid_by_name(
 	return rc;
 }
 
+#ifndef CONFIG_SONY_CAM_V4L2
 static int32_t msm_sensor_fill_laser_led_subdevid_by_name(
 				struct msm_sensor_ctrl_t *s_ctrl)
 {
@@ -335,6 +336,7 @@ static int32_t msm_sensor_fill_laser_led_subdevid_by_name(
 
 	return rc;
 }
+#endif
 
 static int32_t msm_sensor_fill_flash_subdevid_by_name(
 				struct msm_sensor_ctrl_t *s_ctrl)
@@ -1020,11 +1022,13 @@ CSID_TG:
 		pr_err("%s failed %d\n", __func__, __LINE__);
 		goto free_camera_info;
 	}
+#ifndef CONFIG_SONY_CAM_V4L2
 	rc = msm_sensor_fill_laser_led_subdevid_by_name(s_ctrl);
 	if (rc < 0) {
 		pr_err("%s failed %d\n", __func__, __LINE__);
 		goto free_camera_info;
 	}
+#endif
 
 	rc = msm_sensor_fill_ois_subdevid_by_name(s_ctrl);
 	if (rc < 0) {

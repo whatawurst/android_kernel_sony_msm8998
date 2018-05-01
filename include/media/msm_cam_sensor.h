@@ -89,6 +89,7 @@ struct msm_ir_cut_cfg_data_t32 {
 	enum msm_ir_cut_cfg_type_t cfg_type;
 };
 
+#ifndef CONFIG_SONY_CAM_V4L2
 struct msm_laser_led_cfg_data_t32 {
 	enum msm_laser_led_cfg_type_t cfg_type;
 	compat_uptr_t                 setting;
@@ -97,6 +98,7 @@ struct msm_laser_led_cfg_data_t32 {
 	uint16_t                      i2c_addr;
 	enum i2c_freq_mode_t          i2c_freq_mode;
 };
+#endif
 
 struct eeprom_read_t32 {
 	compat_uptr_t dbuffer;
@@ -301,8 +303,10 @@ struct msm_sensor_event_data32 {
 #define VIDIOC_MSM_IR_CUT_CFG32 \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 15, struct msm_ir_cut_cfg_data_t32)
 
+#ifndef CONFIG_SONY_CAM_V4L2
 #define VIDIOC_MSM_LASER_LED_CFG32 \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 16, struct msm_laser_led_cfg_data_t32)
+#endif
 
 #endif
 
