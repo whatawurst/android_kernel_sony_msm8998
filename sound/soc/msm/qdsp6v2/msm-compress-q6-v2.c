@@ -1705,8 +1705,10 @@ ac_err:
 	pdata->dec_params[rtd->dai_link->be_id] = NULL;
 param_err:
 	kfree(pdata->audio_effects[rtd->dai_link->be_id]);
-	kfree(pdata->sony_hweffect[rtd->dai_link->be_id]);
 	pdata->audio_effects[rtd->dai_link->be_id] = NULL;
+	kfree(pdata->sony_hweffect[rtd->dai_link->be_id]);
+	pdata->sony_hweffect[rtd->dai_link->be_id] = NULL;
+
 effect_err:
 	pdata->cstream[rtd->dai_link->be_id] = NULL;
 	runtime->private_data = NULL;
@@ -1879,6 +1881,8 @@ static int msm_compr_playback_free(struct snd_compr_stream *cstream)
 	if (pdata->audio_effects[soc_prtd->dai_link->be_id] != NULL) {
 		kfree(pdata->audio_effects[soc_prtd->dai_link->be_id]);
 		pdata->audio_effects[soc_prtd->dai_link->be_id] = NULL;
+	}
+	if (pdata->sony_hweffect[soc_prtd->dai_link->be_id] != NULL) {
 		kfree(pdata->sony_hweffect[soc_prtd->dai_link->be_id]);
 		pdata->sony_hweffect[soc_prtd->dai_link->be_id] = NULL;
 	}

@@ -2606,12 +2606,6 @@ static int icnss_service_notifier_notify(struct notifier_block *nb,
 		goto event_post;
 	}
 
-	memset(priv->crash_reason, 0, sizeof(priv->crash_reason));
-	snprintf(priv->crash_reason, sizeof(priv->crash_reason),
-			"%s %d %s 0x%lx", "PD service down, pd_state:",
-			*state, "state:", priv->state);
-	priv->data_ready = 1;
-	wake_up(&priv->wlan_pdr_debug_q);
 	switch (*state) {
 	case ROOT_PD_WDOG_BITE:
 		priv->stats.recovery.root_pd_crash++;
@@ -2637,6 +2631,15 @@ static int icnss_service_notifier_notify(struct notifier_block *nb,
 
 	icnss_pr_info("PD service down, pd_state: %d, state: 0x%lx: cause: %s\n",
 		      *state, priv->state, icnss_pdr_cause[cause]);
+	if (*state == USER_PD_STATE_CHANGE) {
+		memset(priv->crash_reason, 0, sizeof(priv->crash_reason));
+		snprintf(priv->crash_reason, sizeof(priv->crash_reason),
+		 "PD service down, pd_state: %d, state: 0x%lx: cause: %s\n",
+		 *state, priv->state, icnss_pdr_cause[cause]);
+		priv->data_ready = 1;
+		wake_up(&priv->wlan_pdr_debug_q);
+	}
+
 event_post:
 	set_bit(ICNSS_FW_DOWN, &priv->state);
 	icnss_ignore_qmi_timeout(true);

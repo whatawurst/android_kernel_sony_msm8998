@@ -4224,6 +4224,9 @@ static int fg_psy_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_TIME_TO_CAP_LEARNING:
 		pval->intval = chip->cl.learned_time_ms / 1000;
 		break;
+	case POWER_SUPPLY_PROP_MONOTONIC_SOC:
+		rc = fg_get_msoc(chip, &pval->intval);
+		break;
 #endif
 	default:
 		pr_err("unsupported property %d\n", psp);
@@ -4364,6 +4367,7 @@ static enum power_supply_property fg_psy_props[] = {
 #if defined(CONFIG_SOMC_CHARGER_EXTENSION)
 	POWER_SUPPLY_PROP_CHARGE_FULL_RAW,
 	POWER_SUPPLY_PROP_TIME_TO_CAP_LEARNING,
+	POWER_SUPPLY_PROP_MONOTONIC_SOC,
 #endif
 };
 
