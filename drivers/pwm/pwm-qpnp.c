@@ -1579,7 +1579,9 @@ int pwm_change_mode(struct pwm_device *pwm, enum pm_pwm_mode mode)
 	chip = qpnp_pwm_from_pwm_dev(pwm);
 
 	spin_lock_irqsave(&chip->lpg_lock, flags);
+#ifndef CONFIG_ARCH_SONY_YOSHINO
 	if (chip->pwm_mode != mode) {
+#endif
 		rc = _pwm_change_mode(chip, mode);
 		if (rc) {
 			pr_err("Failed to change mode: %d, rc=%d\n", mode, rc);
@@ -1593,7 +1595,9 @@ int pwm_change_mode(struct pwm_device *pwm, enum pm_pwm_mode mode)
 				goto unlock;
 			}
 		}
+#ifndef CONFIG_ARCH_SONY_YOSHINO
 	}
+#endif
 unlock:
 	spin_unlock_irqrestore(&chip->lpg_lock, flags);
 
