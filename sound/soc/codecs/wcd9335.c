@@ -5558,7 +5558,7 @@ static int tasha_codec_enable_interpolator(struct snd_soc_dapm_widget *w,
 					    WCD9335_CDC_RX8_RX_PATH_MIX_SEC0,
 					    0x01, 0x01);
 			tasha_codec_set_offset_val(&offset_val,
-						   tasha->spkr_gain_offset, 1);
+						   tasha->spkr_gain_offset, -1);
 		}
 		val = snd_soc_read(codec, gain_reg);
 		val += offset_val;
@@ -5583,7 +5583,8 @@ static int tasha_codec_enable_interpolator(struct snd_soc_dapm_widget *w,
 			snd_soc_update_bits(codec,
 					    WCD9335_CDC_RX8_RX_PATH_MIX_SEC0,
 					    0x01, 0x00);
-			offset_val = 2;
+			tasha_codec_set_offset_val(&offset_val,
+						   tasha->spkr_gain_offset, 1);
 			val = snd_soc_read(codec, gain_reg);
 			val += offset_val;
 			snd_soc_write(codec, gain_reg, val);
