@@ -16,6 +16,11 @@
 #ifndef __ASM_MMU_H
 #define __ASM_MMU_H
 
+#define USER_ASID_FLAG	(UL(1) << 48)
+#define TTBR_ASID_MASK	(UL(0xffff) << 48)
+
+#ifndef __ASSEMBLY__
+
 #include <linux/smp.h>
 
 #include <asm/cpufeature.h>
@@ -70,6 +75,12 @@ static inline struct bp_hardening_data *arm64_get_bp_hardening_data(void)
 static inline void arm64_apply_bp_hardening(void)	{ }
 #endif	/* CONFIG_HARDEN_BRANCH_PREDICTOR */
 
+static inline bool arm64_kernel_unmapped_at_el0(void)
+{
+	return IS_ENABLED(CONFIG_UNMAP_KERNEL_AT_EL0) &&
+	       cpus_have_cap(ARM64_UNMAP_KERNEL_AT_EL0);
+}
+
 extern void paging_init(void);
 extern void __iomem *early_io_map(phys_addr_t phys, unsigned long virt);
 extern void init_mem_pgprot(void);
@@ -78,4 +89,5 @@ extern void create_pgd_mapping(struct mm_struct *mm, phys_addr_t phys,
 			       pgprot_t prot);
 extern void *fixmap_remap_fdt(phys_addr_t dt_phys);
 
+#endif	/* !__ASSEMBLY__ */
 #endif

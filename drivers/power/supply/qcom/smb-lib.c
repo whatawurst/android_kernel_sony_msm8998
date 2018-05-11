@@ -885,6 +885,9 @@ int smblib_rerun_apsd_if_required(struct smb_charger *chg)
 {
 	union power_supply_propval val;
 	int rc;
+#if defined(CONFIG_SOMC_CHARGER_EXTENSION)
+	const struct apsd_result *apsd_result;
+#endif
 
 	rc = smblib_get_prop_usb_present(chg, &val);
 	if (rc < 0) {
@@ -896,7 +899,14 @@ int smblib_rerun_apsd_if_required(struct smb_charger *chg)
 		return 0;
 
 #if defined(CONFIG_SOMC_CHARGER_EXTENSION)
-	smblib_dbg(chg, PR_SOMC, "start type-c reconnection\n");
+	apsd_result = smblib_get_apsd_result(chg);
+	if (apsd_result->pst == POWER_SUPPLY_TYPE_USB ||
+		apsd_result->pst == POWER_SUPPLY_TYPE_USB_CDP) {
+		goto skip_typec_reconnection;
+	}
+	smblib_dbg(chg, PR_SOMC, "start type-c reconnection (%s)\n",
+			apsd_result->name);
+
 	rc = smblib_masked_write(chg,
 				TYPE_C_INTRPT_ENB_SOFTWARE_CTRL_REG,
 				TYPEC_DISABLE_CMD_BIT,
@@ -916,7 +926,7 @@ int smblib_rerun_apsd_if_required(struct smb_charger *chg)
 	/* wait for type-c detection to complete */
 	msleep(200);
 	smblib_dbg(chg, PR_SOMC, "complete type-c reconnection\n");
-
+skip_typec_reconnection:
 #endif
 	rc = smblib_request_dpdm(chg, true);
 	if (rc < 0)
