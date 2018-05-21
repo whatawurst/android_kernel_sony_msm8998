@@ -1,6 +1,6 @@
 #
 # Automatically generated file; DO NOT EDIT.
-# Linux/arm64 4.4.131 Kernel Configuration
+# Linux/arm64 4.4.132 Kernel Configuration
 #
 CONFIG_ARM64=y
 CONFIG_64BIT=y
@@ -4879,6 +4879,7 @@ CONFIG_HAVE_DEBUG_KMEMLEAK=y
 # CONFIG_DEBUG_MEMORY_INIT is not set
 # CONFIG_DEBUG_PER_CPU_MAPS is not set
 CONFIG_HAVE_ARCH_KASAN=y
+# CONFIG_DEBUG_REFCOUNT is not set
 # CONFIG_DEBUG_SHIRQ is not set
 
 #
