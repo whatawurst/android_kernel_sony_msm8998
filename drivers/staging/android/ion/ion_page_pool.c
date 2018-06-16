@@ -84,6 +84,9 @@ static int ion_page_pool_add(struct ion_page_pool *pool, struct page *page)
 
 	if (pool->inode && pool->order == 0)
 		__SetPageMovable(page, pool->inode->i_mapping);
+
+	mod_zone_page_state(page_zone(page), NR_INDIRECTLY_RECLAIMABLE_BYTES,
+			    (1 << (PAGE_SHIFT + pool->order)));
 	mutex_unlock(&pool->mutex);
 	return 0;
 }
@@ -105,6 +108,8 @@ static struct page *ion_page_pool_remove(struct ion_page_pool *pool, bool high)
 	clear_bit(ION_PAGE_CACHE, &page->private);
 
 	list_del_init(&page->lru);
+	mod_zone_page_state(page_zone(page), NR_INDIRECTLY_RECLAIMABLE_BYTES,
+			    -(1 << (PAGE_SHIFT + pool->order)));
 	return page;
 }
 
