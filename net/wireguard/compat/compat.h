@@ -84,13 +84,6 @@
 #define IP6_ECN_set_ce(a, b) IP6_ECN_set_ce(b)
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
-#define time_is_before_jiffies64(a) time_after64(get_jiffies_64(), a)
-#define time_is_after_jiffies64(a) time_before64(get_jiffies_64(), a)
-#define time_is_before_eq_jiffies64(a) time_after_eq64(get_jiffies_64(), a)
-#define time_is_after_eq_jiffies64(a) time_before_eq64(get_jiffies_64(), a)
-#endif
-
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 12, 0) && IS_ENABLED(CONFIG_IPV6) && !defined(ISRHEL7)
 #include <net/ipv6.h>
 struct ipv6_stub_type {
@@ -124,8 +117,9 @@ static inline void skb_reset_tc(struct sk_buff *skb)
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)
+#include <linux/random.h>
 #include <linux/siphash.h>
-static inline u32 get_random_u32(void)
+static inline u32 __wgcompat_get_random_u32(void)
 {
 	static siphash_key_t key;
 	static u32 counter = 0;
@@ -140,6 +134,7 @@ static inline u32 get_random_u32(void)
 #endif
 	return siphash_2u32(counter++, get_random_int(), &key);
 }
+#define get_random_u32 __wgcompat_get_random_u32
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0) && !defined(ISRHEL7)
@@ -332,11 +327,24 @@ static inline int get_random_bytes_wait(void *buf, int nbytes)
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0) && !defined(ISRHEL7)
-#include <linux/ktime.h>
-static inline u64 ktime_get_ns(void)
+#include <linux/hrtimer.h>
+static inline u64 ktime_get_boot_ns(void)
 {
-	return ktime_to_ns(ktime_get());
+	return ktime_to_ns(ktime_get_boottime());
 }
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
+#include <linux/hrtimer.h>
+#else
+#include <linux/timekeeping.h>
+#endif
+static inline u64 __wgcompat_ktime_get_boot_fast_ns(void)
+{
+	return ktime_get_boot_ns();
+}
+#define ktime_get_boot_fast_ns __wgcompat_ktime_get_boot_fast_ns
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0)
@@ -589,7 +597,20 @@ static inline void *skb_put_data(struct sk_buff *skb, const void *data, unsigned
 }
 #endif
 
-/* https://lkml.org/lkml/2017/6/23/790 */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0) && !defined(ISRHEL7)
+#define napi_complete_done(n, work_done) napi_complete(n)
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
+#include <linux/netdevice.h>
+/* NAPI_STATE_SCHED gets set by netif_napi_add anyway, so this is safe.
+ * Also, kernels without NAPI_STATE_NO_BUSY_POLL don't have a call to
+ * napi_hash_add inside of netif_napi_add.
+ */
+#define NAPI_STATE_NO_BUSY_POLL NAPI_STATE_SCHED
+#endif
+
+/* https://lkml.kernel.org/r/20170624021727.17835-1-Jason@zx2c4.com */
 #if IS_ENABLED(CONFIG_NF_CONNTRACK)
 #include <linux/ip.h>
 #include <linux/icmpv6.h>
@@ -619,6 +640,59 @@ static inline void new_icmpv6_send(struct sk_buff *skb, u8 type, u8 code, __u32 
 }
 #define icmp_send(a,b,c,d) new_icmp_send(a,b,c,d)
 #define icmpv6_send(a,b,c,d) new_icmpv6_send(a,b,c,d)
+#endif
+
+/* https://lkml.kernel.org/r/20180618234347.13282-1-Jason@zx2c4.com */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 2, 0)
+#include <linux/random.h>
+#include <linux/slab.h>
+struct rng_is_initialized_callback {
+	struct random_ready_callback cb;
+	atomic_t *rng_state;
+};
+static inline void rng_is_initialized_callback(struct random_ready_callback *cb)
+{
+	struct rng_is_initialized_callback *rdy = container_of(cb, struct rng_is_initialized_callback, cb);
+	atomic_set(rdy->rng_state, 2);
+	kfree(rdy);
+}
+static inline bool rng_is_initialized(void)
+{
+	static atomic_t rng_state = ATOMIC_INIT(0);
+
+	if (atomic_read(&rng_state) == 2)
+		return true;
+
+	if (atomic_cmpxchg(&rng_state, 0, 1) == 0) {
+		int ret;
+		struct rng_is_initialized_callback *rdy = kmalloc(sizeof(*rdy), GFP_ATOMIC);
+		if (!rdy) {
+			atomic_set(&rng_state, 0);
+			return false;
+		}
+		rdy->cb.owner = THIS_MODULE;
+		rdy->cb.func = rng_is_initialized_callback;
+		rdy->rng_state = &rng_state;
+		ret = add_random_ready_callback(&rdy->cb);
+		if (ret)
+			kfree(rdy);
+		if (ret == -EALREADY) {
+			atomic_set(&rng_state, 2);
+			return true;
+		} else if (ret)
+			atomic_set(&rng_state, 0);
+		return false;
+	}
+	return false;
+}
+#else
+/* This is a disaster. Without this API, we really have no way of
+ * knowing if it's initialized. We just return that it has and hope
+ * for the best... */
+static inline bool rng_is_initialized(void)
+{
+	return true;
+}
 #endif
 
 /* PaX compatibility */

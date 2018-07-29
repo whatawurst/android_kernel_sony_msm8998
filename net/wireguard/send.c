@@ -10,11 +10,11 @@
 #include "socket.h"
 #include "messages.h"
 #include "cookie.h"
+#include "crypto/simd.h"
 
 #include <linux/uio.h>
 #include <linux/inetdevice.h>
 #include <linux/socket.h>
-#include <linux/jiffies.h>
 #include <net/ip_tunnels.h>
 #include <net/udp.h>
 #include <net/sock.h>
@@ -24,11 +24,11 @@ static void packet_send_handshake_initiation(struct wireguard_peer *peer)
 	struct message_handshake_initiation packet;
 
 	down_write(&peer->handshake.lock);
-	if (!time_is_before_jiffies64(peer->last_sent_handshake + REKEY_TIMEOUT)) {
+	if (!has_expired(peer->last_sent_handshake, REKEY_TIMEOUT)) {
 		up_write(&peer->handshake.lock);
 		return; /* This function is rate limited. */
 	}
-	peer->last_sent_handshake = get_jiffies_64();
+	peer->last_sent_handshake = ktime_get_boot_fast_ns();
 	up_write(&peer->handshake.lock);
 
 	net_dbg_ratelimited("%s: Sending handshake initiation to peer %llu (%pISpfsc)\n", peer->device->dev->name, peer->internal_id, &peer->endpoint.addr);
@@ -36,6 +36,7 @@ static void packet_send_handshake_initiation(struct wireguard_peer *peer)
 	if (noise_handshake_create_initiation(&packet, &peer->handshake)) {
 		cookie_add_mac_to_packet(&packet, sizeof(packet), peer);
 		timers_any_authenticated_packet_traversal(peer);
+		timers_any_authenticated_packet_sent(peer);
 		socket_send_buffer_to_peer(peer, &packet, sizeof(struct message_handshake_initiation), HANDSHAKE_DSCP);
 		timers_handshake_initiated(peer);
 	}
@@ -57,7 +58,7 @@ void packet_send_queued_handshake_initiation(struct wireguard_peer *peer, bool i
 	/* First checking the timestamp here is just an optimization; it will
 	 * be caught while properly locked inside the actual work queue.
 	 */
-	if (!time_is_before_jiffies64(peer->last_sent_handshake + REKEY_TIMEOUT))
+	if (!has_expired(peer->last_sent_handshake, REKEY_TIMEOUT))
 		return;
 
 	peer = peer_rcu_get(peer);
@@ -71,13 +72,14 @@ void packet_send_handshake_response(struct wireguard_peer *peer)
 	struct message_handshake_response packet;
 
 	net_dbg_ratelimited("%s: Sending handshake response to peer %llu (%pISpfsc)\n", peer->device->dev->name, peer->internal_id, &peer->endpoint.addr);
-	peer->last_sent_handshake = get_jiffies_64();
+	peer->last_sent_handshake = ktime_get_boot_fast_ns();
 
 	if (noise_handshake_create_response(&packet, &peer->handshake)) {
 		cookie_add_mac_to_packet(&packet, sizeof(packet), peer);
 		if (noise_handshake_begin_session(&peer->handshake, &peer->keypairs)) {
 			timers_session_derived(peer);
 			timers_any_authenticated_packet_traversal(peer);
+			timers_any_authenticated_packet_sent(peer);
 			socket_send_buffer_to_peer(peer, &packet, sizeof(struct message_handshake_response), HANDSHAKE_DSCP);
 		}
 	}
@@ -101,7 +103,7 @@ static inline void keep_key_fresh(struct wireguard_peer *peer)
 	keypair = rcu_dereference_bh(peer->keypairs.current_keypair);
 	if (likely(keypair && keypair->sending.is_valid) &&
 	   (unlikely(atomic64_read(&keypair->sending.counter.counter) > REKEY_AFTER_MESSAGES) ||
-	   (keypair->i_am_the_initiator && unlikely(time_is_before_eq_jiffies64(keypair->sending.birthdate + REKEY_AFTER_TIME)))))
+	   (keypair->i_am_the_initiator && unlikely(has_expired(keypair->sending.birthdate, REKEY_AFTER_TIME)))))
 		send = true;
 	rcu_read_unlock_bh();
 
@@ -200,6 +202,7 @@ static void packet_create_data_done(struct sk_buff *first, struct wireguard_peer
 	bool is_keepalive, data_sent = false;
 
 	timers_any_authenticated_packet_traversal(peer);
+	timers_any_authenticated_packet_sent(peer);
 	skb_walk_null_queue_safe(first, skb, next) {
 		is_keepalive = skb->len == message_data_len(0);
 		if (likely(!socket_send_skb_to_peer(peer, skb, PACKET_CB(skb)->ds) && !is_keepalive))
@@ -220,7 +223,6 @@ void packet_tx_worker(struct work_struct *work)
 	struct sk_buff *first;
 	enum packet_state state;
 
-	spin_lock_bh(&queue->ring.consumer_lock);
 	while ((first = __ptr_ring_peek(&queue->ring)) != NULL && (state = atomic_read(&PACKET_CB(first)->state)) != PACKET_STATE_UNCRYPTED) {
 		__ptr_ring_discard_one(&queue->ring);
 		peer = PACKET_PEER(first);
@@ -234,14 +236,13 @@ void packet_tx_worker(struct work_struct *work)
 		noise_keypair_put(keypair);
 		peer_put(peer);
 	}
-	spin_unlock_bh(&queue->ring.consumer_lock);
 }
 
 void packet_encrypt_worker(struct work_struct *work)
 {
 	struct crypt_queue *queue = container_of(work, struct multicore_worker, work)->ptr;
 	struct sk_buff *first, *skb, *next;
-	bool have_simd = chacha20poly1305_init_simd();
+	bool have_simd = simd_get();
 
 	while ((first = ptr_ring_consume_bh(&queue->ring)) != NULL) {
 		enum packet_state state = PACKET_STATE_CRYPTED;
@@ -255,8 +256,10 @@ void packet_encrypt_worker(struct work_struct *work)
 			}
 		}
 		queue_enqueue_per_peer(&PACKET_PEER(first)->tx_queue, first, state);
+
+		have_simd = simd_relax(have_simd);
 	}
-	chacha20poly1305_deinit_simd(have_simd);
+	simd_put(have_simd);
 }
 
 static void packet_create_data(struct sk_buff *first)
@@ -302,7 +305,7 @@ void packet_send_staged_packets(struct wireguard_peer *peer)
 	key = &keypair->sending;
 	if (unlikely(!key || !key->is_valid))
 		goto out_nokey;
-	if (unlikely(time_is_before_eq_jiffies64(key->birthdate + REJECT_AFTER_TIME)))
+	if (unlikely(has_expired(key->birthdate, REJECT_AFTER_TIME)))
 		goto out_invalid;
 
 	/* After we know we have a somewhat valid key, we now try to assign nonces to
@@ -333,7 +336,7 @@ out_nokey:
 	skb_queue_walk(&packets, skb)
 		skb_orphan(skb);
 	/* Then we put them back on the top of the queue. We're not too concerned about
-	 * accidently getting things a little out of order if packets are being added
+	 * accidentally getting things a little out of order if packets are being added
 	 * really fast, because this queue is for before packets can even be sent and
 	 * it's small anyway.
 	 */

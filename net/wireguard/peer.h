@@ -50,13 +50,14 @@ struct wireguard_peer {
 	u64 rx_bytes, tx_bytes;
 	struct timer_list timer_retransmit_handshake, timer_send_keepalive, timer_new_handshake, timer_zero_key_material, timer_persistent_keepalive;
 	unsigned int timer_handshake_attempts;
-	unsigned long persistent_keepalive_interval;
+	u16 persistent_keepalive_interval;
 	bool timers_enabled, timer_need_another_keepalive, sent_lastminute_handshake;
 	struct timespec walltime_last_handshake;
 	struct kref refcount;
 	struct rcu_head rcu;
 	struct list_head peer_list;
 	u64 internal_id;
+	struct napi_struct napi;
 };
 
 struct wireguard_peer *peer_create(struct wireguard_device *wg, const u8 public_key[NOISE_PUBLIC_KEY_LEN], const u8 preshared_key[NOISE_SYMMETRIC_KEY_LEN]);
