@@ -1,6 +1,6 @@
 #
 # Automatically generated file; DO NOT EDIT.
-# Linux/arm64 4.4.146 Kernel Configuration
+# Linux/arm64 4.4.155 Kernel Configuration
 #
 CONFIG_ARM64=y
 CONFIG_64BIT=y
@@ -4127,7 +4127,6 @@ CONFIG_GSI=y
 CONFIG_IPA3=y
 CONFIG_RMNET_IPA3=y
 # CONFIG_IPA_UT is not set
-# CONFIG_SSM is not set
 # CONFIG_GPIO_USB_DETECT is not set
 CONFIG_MSM_MHI=y
 CONFIG_MSM_MHI_UCI=y

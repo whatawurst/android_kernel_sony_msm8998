@@ -2794,6 +2794,7 @@ QDF_STATUS sme_process_msg(tHalHandle hHal, cds_msg_t *pMsg)
 				pMac->peer_rssi = peer_stats[0].rssi;
 				pMac->peer_txrate = peer_stats[0].tx_rate;
 				pMac->peer_rxrate = peer_stats[0].rx_rate;
+				pMac->rx_mc_bc_cnt = peer_stats[0].rx_mc_bc_cnt;
 			}
 		}
 		qdf_mem_free(pMsg->bodyptr);
@@ -4416,6 +4417,7 @@ QDF_STATUS sme_roam_del_pmkid_from_cache(tHalHandle hHal, uint8_t sessionId,
 	}
 	return status;
 }
+
 #ifdef WLAN_FEATURE_ROAM_OFFLOAD
 void sme_get_pmk_info(tHalHandle hal, uint8_t session_id,
 			   tPmkidCacheInfo *pmk_cache)
@@ -4429,7 +4431,6 @@ void sme_get_pmk_info(tHalHandle hal, uint8_t session_id,
 		sme_release_global_lock(&mac_ctx->sme);
 	}
 }
-
 /**
  * sme_roam_set_psk_pmk() - A wrapper function to request CSR to save PSK/PMK
  *  This is a synchronous call.
