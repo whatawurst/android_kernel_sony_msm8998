@@ -1,5 +1,5 @@
-/* SPDX-License-Identifier: GPL-2.0
- *
+/* SPDX-License-Identifier: GPL-2.0 */
+/*
  * Copyright (C) 2015-2018 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
  */
 
@@ -686,6 +686,66 @@ static inline void *skb_put_data(struct sk_buff *skb, const void *data, unsigned
 #ifndef atomic_set_release
 #define atomic_set_release(v, i) smp_store_release(&(v)->counter, (i))
 #endif
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0)
+static inline void le32_to_cpu_array(u32 *buf, unsigned int words)
+{
+	while (words--) {
+		__le32_to_cpus(buf);
+		buf++;
+	}
+}
+static inline void cpu_to_le32_array(u32 *buf, unsigned int words)
+{
+	while (words--) {
+		__cpu_to_le32s(buf);
+		buf++;
+	}
+}
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
+#include <crypto/algapi.h>
+static inline void crypto_xor_cpy(u8 *dst, const u8 *src1, const u8 *src2,
+				  unsigned int size)
+{
+	if (IS_ENABLED(CONFIG_HAVE_EFFICIENT_UNALIGNED_ACCESS) &&
+	    __builtin_constant_p(size) &&
+	    (size % sizeof(unsigned long)) == 0) {
+		unsigned long *d = (unsigned long *)dst;
+		unsigned long *s1 = (unsigned long *)src1;
+		unsigned long *s2 = (unsigned long *)src2;
+
+		while (size > 0) {
+			*d++ = *s1++ ^ *s2++;
+			size -= sizeof(unsigned long);
+		}
+	} else {
+		if (unlikely(dst != src1))
+			memmove(dst, src1, size);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)
+		crypto_xor(dst, src2, size);
+#else
+		__crypto_xor(dst, src2, size);
+#endif
+	}
+}
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
+#define read_cpuid_part() read_cpuid_part_number()
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
+#define hlist_add_behind(a, b) hlist_add_after(b, a)
+#endif
+
+/* https://github.com/ClangBuiltLinux/linux/issues/7 */
+#ifdef __clang__
+#include <linux/bug.h>
+#undef BUILD_BUG_ON
+#define BUILD_BUG_ON(x)
 #endif
 
 /* https://lkml.kernel.org/r/20170624021727.17835-1-Jason@zx2c4.com */

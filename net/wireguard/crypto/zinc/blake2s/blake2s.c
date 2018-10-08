@@ -1,5 +1,5 @@
-/* SPDX-License-Identifier: GPL-2.0
- *
+// SPDX-License-Identifier: GPL-2.0 OR MIT
+/*
  * Copyright (C) 2012 Samuel Neves <sneves@dei.uc.pt>. All Rights Reserved.
  * Copyright (C) 2015-2018 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
  *
@@ -10,10 +10,13 @@
  */
 
 #include <zinc/blake2s.h>
+#include "../selftest/run.h"
 
 #include <linux/types.h>
 #include <linux/string.h>
 #include <linux/kernel.h>
+#include <linux/module.h>
+#include <linux/init.h>
 #include <linux/bug.h>
 #include <asm/unaligned.h>
 
@@ -84,9 +87,7 @@ void blake2s_init(struct blake2s_state *state, const size_t outlen)
 		.depth = 1
 	};
 
-#ifdef DEBUG
-	BUG_ON(!outlen || outlen > BLAKE2S_OUTBYTES);
-#endif
+	WARN_ON(IS_ENABLED(DEBUG) && (!outlen || outlen > BLAKE2S_HASH_SIZE));
 	blake2s_init_param(state, &param);
 }
 EXPORT_SYMBOL(blake2s_init);
@@ -98,25 +99,27 @@ void blake2s_init_key(struct blake2s_state *state, const size_t outlen,
 				.key_length = keylen,
 				.fanout = 1,
 				.depth = 1 };
-	u8 block[BLAKE2S_BLOCKBYTES] = { 0 };
+	u8 block[BLAKE2S_BLOCK_SIZE] = { 0 };
 
-#ifdef DEBUG
-	BUG_ON(!outlen || outlen > BLAKE2S_OUTBYTES || !key || !keylen ||
-	       keylen > BLAKE2S_KEYBYTES);
-#endif
+	WARN_ON(IS_ENABLED(DEBUG) && (!outlen || outlen > BLAKE2S_HASH_SIZE ||
+		!key || !keylen || keylen > BLAKE2S_KEY_SIZE));
 	blake2s_init_param(state, &param);
 	memcpy(block, key, keylen);
-	blake2s_update(state, block, BLAKE2S_BLOCKBYTES);
-	memzero_explicit(block, BLAKE2S_BLOCKBYTES);
+	blake2s_update(state, block, BLAKE2S_BLOCK_SIZE);
+	memzero_explicit(block, BLAKE2S_BLOCK_SIZE);
 }
 EXPORT_SYMBOL(blake2s_init_key);
 
-#ifndef HAVE_BLAKE2S_ARCH_IMPLEMENTATION
-void __init blake2s_fpu_init(void)
+#if defined(CONFIG_ZINC_ARCH_X86_64)
+#include "blake2s-x86_64-glue.c"
+#else
+static bool *const blake2s_nobs[] __initconst = { };
+static void __init blake2s_fpu_init(void)
 {
 }
-static inline bool blake2s_arch(struct blake2s_state *state, const u8 *block,
-				const size_t nblocks, const u32 inc)
+static inline bool blake2s_compress_arch(struct blake2s_state *state,
+					 const u8 *block, size_t nblocks,
+					 const u32 inc)
 {
 	return false;
 }
@@ -130,22 +133,16 @@ static inline void blake2s_compress(struct blake2s_state *state,
 	u32 v[16];
 	int i;
 
-#ifdef DEBUG
-	BUG_ON(nblocks > 1 && inc != BLAKE2S_BLOCKBYTES);
-#endif
+	WARN_ON(IS_ENABLED(DEBUG) &&
+		(nblocks > 1 && inc != BLAKE2S_BLOCK_SIZE));
 
-	if (blake2s_arch(state, block, nblocks, inc))
+	if (blake2s_compress_arch(state, block, nblocks, inc))
 		return;
 
 	while (nblocks > 0) {
 		blake2s_increment_counter(state, inc);
-
-#ifdef __LITTLE_ENDIAN
-		memcpy(m, block, BLAKE2S_BLOCKBYTES);
-#else
-		for (i = 0; i < 16; ++i)
-			m[i] = get_unaligned_le32(block + i * sizeof(m[i]));
-#endif
+		memcpy(m, block, BLAKE2S_BLOCK_SIZE);
+		le32_to_cpu_array(m, ARRAY_SIZE(m));
 		memcpy(v, state->h, 32);
 		v[ 8] = blake2s_iv[0];
 		v[ 9] = blake2s_iv[1];
@@ -194,81 +191,115 @@ static inline void blake2s_compress(struct blake2s_state *state,
 		for (i = 0; i < 8; ++i)
 			state->h[i] ^= v[i] ^ v[i + 8];
 
-		block += BLAKE2S_BLOCKBYTES;
+		block += BLAKE2S_BLOCK_SIZE;
 		--nblocks;
 	}
 }
 
 void blake2s_update(struct blake2s_state *state, const u8 *in, size_t inlen)
 {
-	const size_t fill = BLAKE2S_BLOCKBYTES - state->buflen;
+	const size_t fill = BLAKE2S_BLOCK_SIZE - state->buflen;
 
 	if (unlikely(!inlen))
 		return;
 	if (inlen > fill) {
 		memcpy(state->buf + state->buflen, in, fill);
-		blake2s_compress(state, state->buf, 1, BLAKE2S_BLOCKBYTES);
+		blake2s_compress(state, state->buf, 1, BLAKE2S_BLOCK_SIZE);
 		state->buflen = 0;
 		in += fill;
 		inlen -= fill;
 	}
-	if (inlen > BLAKE2S_BLOCKBYTES) {
+	if (inlen > BLAKE2S_BLOCK_SIZE) {
 		const size_t nblocks =
-			(inlen + BLAKE2S_BLOCKBYTES - 1) / BLAKE2S_BLOCKBYTES;
+			(inlen + BLAKE2S_BLOCK_SIZE - 1) / BLAKE2S_BLOCK_SIZE;
 		/* Hash one less (full) block than strictly possible */
-		blake2s_compress(state, in, nblocks - 1, BLAKE2S_BLOCKBYTES);
-		in += BLAKE2S_BLOCKBYTES * (nblocks - 1);
-		inlen -= BLAKE2S_BLOCKBYTES * (nblocks - 1);
+		blake2s_compress(state, in, nblocks - 1, BLAKE2S_BLOCK_SIZE);
+		in += BLAKE2S_BLOCK_SIZE * (nblocks - 1);
+		inlen -= BLAKE2S_BLOCK_SIZE * (nblocks - 1);
 	}
 	memcpy(state->buf + state->buflen, in, inlen);
 	state->buflen += inlen;
 }
 EXPORT_SYMBOL(blake2s_update);
 
-void __blake2s_final(struct blake2s_state *state)
+void blake2s_final(struct blake2s_state *state, u8 *out, const size_t outlen)
 {
+	WARN_ON(IS_ENABLED(DEBUG) &&
+		(!out || !outlen || outlen > BLAKE2S_HASH_SIZE));
 	blake2s_set_lastblock(state);
 	memset(state->buf + state->buflen, 0,
-	       BLAKE2S_BLOCKBYTES - state->buflen); /* Padding */
+	       BLAKE2S_BLOCK_SIZE - state->buflen); /* Padding */
 	blake2s_compress(state, state->buf, 1, state->buflen);
+	cpu_to_le32_array(state->h, ARRAY_SIZE(state->h));
+	memcpy(out, state->h, outlen);
+	memzero_explicit(state, sizeof(*state));
 }
-EXPORT_SYMBOL(__blake2s_final);
+EXPORT_SYMBOL(blake2s_final);
 
 void blake2s_hmac(u8 *out, const u8 *in, const u8 *key, const size_t outlen,
 		  const size_t inlen, const size_t keylen)
 {
 	struct blake2s_state state;
-	u8 x_key[BLAKE2S_BLOCKBYTES] __aligned(__alignof__(u32)) = { 0 };
-	u8 i_hash[BLAKE2S_OUTBYTES] __aligned(__alignof__(u32));
+	u8 x_key[BLAKE2S_BLOCK_SIZE] __aligned(__alignof__(u32)) = { 0 };
+	u8 i_hash[BLAKE2S_HASH_SIZE] __aligned(__alignof__(u32));
 	int i;
 
-	if (keylen > BLAKE2S_BLOCKBYTES) {
-		blake2s_init(&state, BLAKE2S_OUTBYTES);
+	if (keylen > BLAKE2S_BLOCK_SIZE) {
+		blake2s_init(&state, BLAKE2S_HASH_SIZE);
 		blake2s_update(&state, key, keylen);
-		blake2s_final(&state, x_key, BLAKE2S_OUTBYTES);
+		blake2s_final(&state, x_key, BLAKE2S_HASH_SIZE);
 	} else
 		memcpy(x_key, key, keylen);
 
-	for (i = 0; i < BLAKE2S_BLOCKBYTES; ++i)
+	for (i = 0; i < BLAKE2S_BLOCK_SIZE; ++i)
 		x_key[i] ^= 0x36;
 
-	blake2s_init(&state, BLAKE2S_OUTBYTES);
-	blake2s_update(&state, x_key, BLAKE2S_BLOCKBYTES);
+	blake2s_init(&state, BLAKE2S_HASH_SIZE);
+	blake2s_update(&state, x_key, BLAKE2S_BLOCK_SIZE);
 	blake2s_update(&state, in, inlen);
-	blake2s_final(&state, i_hash, BLAKE2S_OUTBYTES);
+	blake2s_final(&state, i_hash, BLAKE2S_HASH_SIZE);
 
-	for (i = 0; i < BLAKE2S_BLOCKBYTES; ++i)
+	for (i = 0; i < BLAKE2S_BLOCK_SIZE; ++i)
 		x_key[i] ^= 0x5c ^ 0x36;
 
-	blake2s_init(&state, BLAKE2S_OUTBYTES);
-	blake2s_update(&state, x_key, BLAKE2S_BLOCKBYTES);
-	blake2s_update(&state, i_hash, BLAKE2S_OUTBYTES);
-	blake2s_final(&state, i_hash, BLAKE2S_OUTBYTES);
+	blake2s_init(&state, BLAKE2S_HASH_SIZE);
+	blake2s_update(&state, x_key, BLAKE2S_BLOCK_SIZE);
+	blake2s_update(&state, i_hash, BLAKE2S_HASH_SIZE);
+	blake2s_final(&state, i_hash, BLAKE2S_HASH_SIZE);
 
 	memcpy(out, i_hash, outlen);
-	memzero_explicit(x_key, BLAKE2S_BLOCKBYTES);
-	memzero_explicit(i_hash, BLAKE2S_OUTBYTES);
+	memzero_explicit(x_key, BLAKE2S_BLOCK_SIZE);
+	memzero_explicit(i_hash, BLAKE2S_HASH_SIZE);
 }
 EXPORT_SYMBOL(blake2s_hmac);
 
-#include "../selftest/blake2s.h"
+#include "../selftest/blake2s.c"
+
+static bool nosimd __initdata = false;
+
+#ifndef COMPAT_ZINC_IS_A_MODULE
+int __init blake2s_mod_init(void)
+#else
+static int __init mod_init(void)
+#endif
+{
+	if (!nosimd)
+		blake2s_fpu_init();
+	if (!selftest_run("blake2s", blake2s_selftest, blake2s_nobs,
+			  ARRAY_SIZE(blake2s_nobs)))
+		return -ENOTRECOVERABLE;
+	return 0;
+}
+
+#ifdef COMPAT_ZINC_IS_A_MODULE
+static void __exit mod_exit(void)
+{
+}
+
+module_param(nosimd, bool, 0);
+module_init(mod_init);
+module_exit(mod_exit);
+MODULE_LICENSE("GPL v2");
+MODULE_DESCRIPTION("BLAKE2s hash function");
+MODULE_AUTHOR("Jason A. Donenfeld <Jason@zx2c4.com>");
+#endif

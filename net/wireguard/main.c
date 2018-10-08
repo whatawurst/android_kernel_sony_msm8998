@@ -1,5 +1,5 @@
-/* SPDX-License-Identifier: GPL-2.0
- *
+// SPDX-License-Identifier: GPL-2.0
+/*
  * Copyright (C) 2015-2018 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
  */
 
@@ -10,12 +10,7 @@
 #include "ratelimiter.h"
 #include "netlink.h"
 #include "uapi/wireguard.h"
-
-#include <zinc/chacha20poly1305.h>
-#include <zinc/chacha20.h>
-#include <zinc/poly1305.h>
-#include <zinc/blake2s.h>
-#include <zinc/curve25519.h>
+#include "crypto/zinc.h"
 
 #include <linux/version.h>
 #include <linux/init.h>
@@ -27,24 +22,23 @@ static int __init mod_init(void)
 {
 	int ret;
 
-	chacha20_fpu_init();
-	poly1305_fpu_init();
-	blake2s_fpu_init();
-	curve25519_fpu_init();
+	if ((ret = chacha20_mod_init()) || (ret = poly1305_mod_init()) ||
+	    (ret = chacha20poly1305_mod_init()) || (ret = blake2s_mod_init()) ||
+	    (ret = curve25519_mod_init()))
+		return ret;
+
 #ifdef DEBUG
-	if (!allowedips_selftest() || !packet_counter_selftest() ||
-	    !curve25519_selftest() || !poly1305_selftest() ||
-	    !chacha20poly1305_selftest() || !blake2s_selftest() ||
-	    !ratelimiter_selftest())
+	if (!wg_allowedips_selftest() || !wg_packet_counter_selftest() ||
+	    !wg_ratelimiter_selftest())
 		return -ENOTRECOVERABLE;
 #endif
-	noise_init();
+	wg_noise_init();
 
-	ret = device_init();
+	ret = wg_device_init();
 	if (ret < 0)
 		goto err_device;
 
-	ret = genetlink_init();
+	ret = wg_genetlink_init();
 	if (ret < 0)
 		goto err_netlink;
 
@@ -54,15 +48,15 @@ static int __init mod_init(void)
 	return 0;
 
 err_netlink:
-	device_uninit();
+	wg_device_uninit();
 err_device:
 	return ret;
 }
 
 static void __exit mod_exit(void)
 {
-	genetlink_uninit();
-	device_uninit();
+	wg_genetlink_uninit();
+	wg_device_uninit();
 	pr_debug("WireGuard unloaded\n");
 }
 
