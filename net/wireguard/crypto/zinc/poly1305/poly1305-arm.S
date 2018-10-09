@@ -1,5 +1,5 @@
-/* SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0
- *
+/* SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause */
+/*
  * Copyright (C) 2015-2018 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
  * Copyright (C) 2006-2017 CRYPTOGAMS by <appro@openssl.org>. All Rights Reserved.
  *
@@ -339,7 +339,7 @@ ENTRY(poly1305_emit_arm)
 ENDPROC(poly1305_emit_arm)
 
 
-#if __LINUX_ARM_ARCH__ >= 7
+#ifdef CONFIG_KERNEL_MODE_NEON
 .fpu	neon
 
 .align	5

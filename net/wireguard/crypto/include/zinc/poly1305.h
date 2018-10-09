@@ -1,5 +1,5 @@
-/* SPDX-License-Identifier: GPL-2.0
- *
+/* SPDX-License-Identifier: GPL-2.0 OR MIT */
+/*
  * Copyright (C) 2015-2018 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
  */
 
@@ -22,17 +22,10 @@ struct poly1305_ctx {
 	size_t num;
 } __aligned(8);
 
-void poly1305_fpu_init(void);
-
-void poly1305_init(struct poly1305_ctx *ctx, const u8 key[POLY1305_KEY_SIZE],
-		   simd_context_t simd_context);
-void poly1305_update(struct poly1305_ctx *ctx, const u8 *inp, const size_t len,
-		     simd_context_t simd_context);
-void poly1305_finish(struct poly1305_ctx *ctx, u8 mac[POLY1305_MAC_SIZE],
-		     simd_context_t simd_context);
-
-#ifdef DEBUG
-bool poly1305_selftest(void);
-#endif
+void poly1305_init(struct poly1305_ctx *ctx, const u8 key[POLY1305_KEY_SIZE]);
+void poly1305_update(struct poly1305_ctx *ctx, const u8 *input, size_t len,
+		     simd_context_t *simd_context);
+void poly1305_final(struct poly1305_ctx *ctx, u8 mac[POLY1305_MAC_SIZE],
+		    simd_context_t *simd_context);
 
 #endif /* _ZINC_POLY1305_H */

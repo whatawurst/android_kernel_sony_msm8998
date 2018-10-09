@@ -1,11 +1,22 @@
-/* SPDX-License-Identifier: GPL-2.0
- *
+// SPDX-License-Identifier: GPL-2.0
+/*
  * Copyright (C) 2015-2018 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
+ *
+ * This contains some basic static unit tests for the allowedips data structure.
+ * It also has two additional modes that are disabled and meant to be used by
+ * folks directly playing with this file. If you define the macro
+ * DEBUG_PRINT_TRIE_GRAPHVIZ to be 1, then every time there's a full tree in
+ * memory, it will be printed out as KERN_DEBUG in a format that can be passed
+ * to graphviz (the dot command) to visualize it. If you define the macro
+ * DEBUG_RANDOM_TRIE to be 1, then there will be an extremely costly set of
+ * randomized tests done against a trivial implementation, which may take
+ * upwards of a half-hour to complete. There's no set of users who should be
+ * enabling these, and the only developers that should go anywhere near these
+ * nobs are the ones who are reading this comment.
  */
 
 #ifdef DEBUG
 
-#ifdef DEBUG_PRINT_TRIE_GRAPHVIZ
 #include <linux/siphash.h>
 
 static __init void swap_endian_and_apply_cidr(u8 *dst, const u8 *src, u8 bits,
@@ -66,17 +77,18 @@ static __init void print_tree(struct allowedips_node *top, u8 bits)
 	print_node(top, bits);
 	printk(KERN_DEBUG "}\n");
 }
-#endif
 
-#ifdef DEBUG_RANDOM_TRIE
-#define NUM_PEERS 2000
-#define NUM_RAND_ROUTES 400
-#define NUM_MUTATED_ROUTES 100
-#define NUM_QUERIES (NUM_RAND_ROUTES * NUM_MUTATED_ROUTES * 30)
-#include <linux/random.h>
+enum {
+	NUM_PEERS = 2000,
+	NUM_RAND_ROUTES = 400,
+	NUM_MUTATED_ROUTES = 100,
+	NUM_QUERIES = NUM_RAND_ROUTES * NUM_MUTATED_ROUTES * 30
+};
+
 struct horrible_allowedips {
 	struct hlist_head head;
 };
+
 struct horrible_allowedips_node {
 	struct hlist_node table;
 	union nf_inet_addr ip;
@@ -84,10 +96,12 @@ struct horrible_allowedips_node {
 	uint8_t ip_version;
 	void *value;
 };
+
 static __init void horrible_allowedips_init(struct horrible_allowedips *table)
 {
 	INIT_HLIST_HEAD(&table->head);
 }
+
 static __init void horrible_allowedips_free(struct horrible_allowedips *table)
 {
 	struct horrible_allowedips_node *node;
@@ -98,6 +112,7 @@ static __init void horrible_allowedips_free(struct horrible_allowedips *table)
 		kfree(node);
 	}
 }
+
 static __init inline union nf_inet_addr horrible_cidr_to_mask(uint8_t cidr)
 {
 	union nf_inet_addr mask;
@@ -109,11 +124,13 @@ static __init inline union nf_inet_addr horrible_cidr_to_mask(uint8_t cidr)
 			(0xFFFFFFFFUL << (32 - (cidr % 32))) & 0xFFFFFFFFUL);
 	return mask;
 }
+
 static __init inline uint8_t horrible_mask_to_cidr(union nf_inet_addr subnet)
 {
 	return hweight32(subnet.all[0]) + hweight32(subnet.all[1]) +
 	       hweight32(subnet.all[2]) + hweight32(subnet.all[3]);
 }
+
 static __init inline void
 horrible_mask_self(struct horrible_allowedips_node *node)
 {
@@ -126,12 +143,14 @@ horrible_mask_self(struct horrible_allowedips_node *node)
 		node->ip.ip6[3] &= node->mask.ip6[3];
 	}
 }
+
 static __init inline bool
 horrible_match_v4(const struct horrible_allowedips_node *node,
 		  struct in_addr *ip)
 {
 	return (ip->s_addr & node->mask.ip) == node->ip.ip;
 }
+
 static __init inline bool
 horrible_match_v6(const struct horrible_allowedips_node *node,
 		  struct in6_addr *ip)
@@ -144,6 +163,7 @@ horrible_match_v6(const struct horrible_allowedips_node *node,
 		       node->ip.ip6[2] &&
 	       (ip->in6_u.u6_addr32[3] & node->mask.ip6[3]) == node->ip.ip6[3];
 }
+
 static __init void
 horrible_insert_ordered(struct horrible_allowedips *table,
 			struct horrible_allowedips_node *node)
@@ -172,11 +192,13 @@ horrible_insert_ordered(struct horrible_allowedips *table,
 	else
 		hlist_add_before(&node->table, &where->table);
 }
+
 static __init int
 horrible_allowedips_insert_v4(struct horrible_allowedips *table,
 			      struct in_addr *ip, uint8_t cidr, void *value)
 {
-	struct horrible_allowedips_node *node = kzalloc(sizeof(*node), GFP_KERNEL);
+	struct horrible_allowedips_node *node = kzalloc(sizeof(*node),
+							GFP_KERNEL);
 
 	if (unlikely(!node))
 		return -ENOMEM;
@@ -188,11 +210,13 @@ horrible_allowedips_insert_v4(struct horrible_allowedips *table,
 	horrible_insert_ordered(table, node);
 	return 0;
 }
+
 static __init int
 horrible_allowedips_insert_v6(struct horrible_allowedips *table,
 			      struct in6_addr *ip, uint8_t cidr, void *value)
 {
-	struct horrible_allowedips_node *node = kzalloc(sizeof(*node), GFP_KERNEL);
+	struct horrible_allowedips_node *node = kzalloc(sizeof(*node),
+							GFP_KERNEL);
 
 	if (unlikely(!node))
 		return -ENOMEM;
@@ -204,6 +228,7 @@ horrible_allowedips_insert_v6(struct horrible_allowedips *table,
 	horrible_insert_ordered(table, node);
 	return 0;
 }
+
 static __init void *
 horrible_allowedips_lookup_v4(struct horrible_allowedips *table,
 			      struct in_addr *ip)
@@ -221,6 +246,7 @@ horrible_allowedips_lookup_v4(struct horrible_allowedips *table,
 	}
 	return ret;
 }
+
 static __init void *
 horrible_allowedips_lookup_v6(struct horrible_allowedips *table,
 			      struct in6_addr *ip)
@@ -251,18 +277,18 @@ static __init bool randomized_test(void)
 
 	mutex_init(&mutex);
 
-	allowedips_init(&t);
+	wg_allowedips_init(&t);
 	horrible_allowedips_init(&h);
 
 	peers = kcalloc(NUM_PEERS, sizeof(*peers), GFP_KERNEL);
 	if (unlikely(!peers)) {
-		pr_info("allowedips random self-test: out of memory\n");
+		pr_err("allowedips random self-test malloc: FAIL\n");
 		goto free;
 	}
 	for (i = 0; i < NUM_PEERS; ++i) {
 		peers[i] = kzalloc(sizeof(*peers[i]), GFP_KERNEL);
 		if (unlikely(!peers[i])) {
-			pr_info("allowedips random self-test: out of memory\n");
+			pr_err("allowedips random self-test malloc: FAIL\n");
 			goto free;
 		}
 		kref_init(&peers[i]->refcount);
@@ -274,14 +300,14 @@ static __init bool randomized_test(void)
 		prandom_bytes(ip, 4);
 		cidr = prandom_u32_max(32) + 1;
 		peer = peers[prandom_u32_max(NUM_PEERS)];
-		if (allowedips_insert_v4(&t, (struct in_addr *)ip, cidr, peer,
-					 &mutex) < 0) {
-			pr_info("allowedips random self-test: out of memory\n");
+		if (wg_allowedips_insert_v4(&t, (struct in_addr *)ip, cidr,
+					    peer, &mutex) < 0) {
+			pr_err("allowedips random self-test malloc: FAIL\n");
 			goto free;
 		}
 		if (horrible_allowedips_insert_v4(&h, (struct in_addr *)ip,
 						  cidr, peer) < 0) {
-			pr_info("allowedips random self-test: out of memory\n");
+			pr_err("allowedips random self-test malloc: FAIL\n");
 			goto free;
 		}
 		for (j = 0; j < NUM_MUTATED_ROUTES; ++j) {
@@ -300,14 +326,15 @@ static __init bool randomized_test(void)
 					      prandom_u32_max(256));
 			cidr = prandom_u32_max(32) + 1;
 			peer = peers[prandom_u32_max(NUM_PEERS)];
-			if (allowedips_insert_v4(&t, (struct in_addr *)mutated,
-						 cidr, peer, &mutex) < 0) {
-				pr_info("allowedips random self-test: out of memory\n");
+			if (wg_allowedips_insert_v4(&t,
+						    (struct in_addr *)mutated,
+						    cidr, peer, &mutex) < 0) {
+				pr_err("allowedips random malloc: FAIL\n");
 				goto free;
 			}
 			if (horrible_allowedips_insert_v4(&h,
 				(struct in_addr *)mutated, cidr, peer)) {
-				pr_info("allowedips random self-test: out of memory\n");
+				pr_err("allowedips random self-test malloc: FAIL\n");
 				goto free;
 			}
 		}
@@ -317,14 +344,14 @@ static __init bool randomized_test(void)
 		prandom_bytes(ip, 16);
 		cidr = prandom_u32_max(128) + 1;
 		peer = peers[prandom_u32_max(NUM_PEERS)];
-		if (allowedips_insert_v6(&t, (struct in6_addr *)ip, cidr, peer,
-					 &mutex) < 0) {
-			pr_info("allowedips random self-test: out of memory\n");
+		if (wg_allowedips_insert_v6(&t, (struct in6_addr *)ip, cidr,
+					    peer, &mutex) < 0) {
+			pr_err("allowedips random self-test malloc: FAIL\n");
 			goto free;
 		}
 		if (horrible_allowedips_insert_v6(&h, (struct in6_addr *)ip,
 						  cidr, peer) < 0) {
-			pr_info("allowedips random self-test: out of memory\n");
+			pr_err("allowedips random self-test malloc: FAIL\n");
 			goto free;
 		}
 		for (j = 0; j < NUM_MUTATED_ROUTES; ++j) {
@@ -343,15 +370,16 @@ static __init bool randomized_test(void)
 					      prandom_u32_max(256));
 			cidr = prandom_u32_max(128) + 1;
 			peer = peers[prandom_u32_max(NUM_PEERS)];
-			if (allowedips_insert_v6(&t, (struct in6_addr *)mutated,
-						 cidr, peer, &mutex) < 0) {
-				pr_info("allowedips random self-test: out of memory\n");
+			if (wg_allowedips_insert_v6(&t,
+						    (struct in6_addr *)mutated,
+						    cidr, peer, &mutex) < 0) {
+				pr_err("allowedips random self-test malloc: FAIL\n");
 				goto free;
 			}
 			if (horrible_allowedips_insert_v6(
 				    &h, (struct in6_addr *)mutated, cidr,
 				    peer)) {
-				pr_info("allowedips random self-test: out of memory\n");
+				pr_err("allowedips random self-test malloc: FAIL\n");
 				goto free;
 			}
 		}
@@ -359,16 +387,16 @@ static __init bool randomized_test(void)
 
 	mutex_unlock(&mutex);
 
-#ifdef DEBUG_PRINT_TRIE_GRAPHVIZ
-	print_tree(t.root4, 32);
-	print_tree(t.root6, 128);
-#endif
+	if (IS_ENABLED(DEBUG_PRINT_TRIE_GRAPHVIZ)) {
+		print_tree(t.root4, 32);
+		print_tree(t.root6, 128);
+	}
 
 	for (i = 0; i < NUM_QUERIES; ++i) {
 		prandom_bytes(ip, 4);
 		if (lookup(t.root4, 32, ip) !=
 		    horrible_allowedips_lookup_v4(&h, (struct in_addr *)ip)) {
-			pr_info("allowedips random self-test: FAIL\n");
+			pr_err("allowedips random self-test: FAIL\n");
 			goto free;
 		}
 	}
@@ -377,7 +405,7 @@ static __init bool randomized_test(void)
 		prandom_bytes(ip, 16);
 		if (lookup(t.root6, 128, ip) !=
 		    horrible_allowedips_lookup_v6(&h, (struct in6_addr *)ip)) {
-			pr_info("allowedips random self-test: FAIL\n");
+			pr_err("allowedips random self-test: FAIL\n");
 			goto free;
 		}
 	}
@@ -385,7 +413,7 @@ static __init bool randomized_test(void)
 
 free:
 	mutex_lock(&mutex);
-	allowedips_free(&t, &mutex);
+	wg_allowedips_free(&t, &mutex);
 	mutex_unlock(&mutex);
 	horrible_allowedips_free(&h);
 	if (peers) {
@@ -395,7 +423,6 @@ free:
 	kfree(peers);
 	return ret;
 }
-#endif
 
 static __init inline struct in_addr *ip4(u8 a, u8 b, u8 c, u8 d)
 {
@@ -407,6 +434,7 @@ static __init inline struct in_addr *ip4(u8 a, u8 b, u8 c, u8 d)
 	split[3] = d;
 	return &ip;
 }
+
 static __init inline struct in6_addr *ip6(u32 a, u32 b, u32 c, u32 d)
 {
 	static struct in6_addr ip;
@@ -453,18 +481,15 @@ static __init int walk_callback(void *ctx, const u8 *ip, u8 cidr, int family)
 	return 0;
 }
 
-#define init_peer(name) do {                                               \
-		name = kzalloc(sizeof(*name), GFP_KERNEL);                 \
-		if (unlikely(!name)) {                                     \
-			pr_info("allowedips self-test: out of memory\n");  \
-			goto free;                                         \
-		}                                                          \
-		kref_init(&name->refcount);                                \
+#define init_peer(name) do {                               \
+		name = kzalloc(sizeof(*name), GFP_KERNEL); \
+		if (name)                                  \
+			kref_init(&name->refcount);        \
 	} while (0)
 
-#define insert(version, mem, ipa, ipb, ipc, ipd, cidr)                    \
-	allowedips_insert_v##version(&t, ip##version(ipa, ipb, ipc, ipd), \
-				     cidr, mem, &mutex)
+#define insert(version, mem, ipa, ipb, ipc, ipd, cidr)                       \
+	wg_allowedips_insert_v##version(&t, ip##version(ipa, ipb, ipc, ipd), \
+					cidr, mem, &mutex)
 
 #define maybe_fail() do {                                               \
 		++i;                                                    \
@@ -491,11 +516,11 @@ static __init int walk_callback(void *ctx, const u8 *ip, u8 cidr, int family)
 		maybe_fail();     \
 	} while (0)
 
-bool __init allowedips_selftest(void)
+bool __init wg_allowedips_selftest(void)
 {
 	struct wireguard_peer *a = NULL, *b = NULL, *c = NULL, *d = NULL,
 			      *e = NULL, *f = NULL, *g = NULL, *h = NULL;
-	struct allowedips_cursor cursor = { 0 };
+	struct allowedips_cursor *cursor = NULL;
 	struct walk_ctx wctx = { 0 };
 	bool success = false;
 	struct allowedips t;
@@ -507,7 +532,7 @@ bool __init allowedips_selftest(void)
 	mutex_init(&mutex);
 	mutex_lock(&mutex);
 
-	allowedips_init(&t);
+	wg_allowedips_init(&t);
 	init_peer(a);
 	init_peer(b);
 	init_peer(c);
@@ -516,6 +541,12 @@ bool __init allowedips_selftest(void)
 	init_peer(f);
 	init_peer(g);
 	init_peer(h);
+	cursor = kzalloc(sizeof(*cursor), GFP_KERNEL);
+
+	if (!cursor || !a || !b || !c || !d || !e || !f || !g || !h) {
+		pr_err("allowedips self-test malloc: FAIL\n");
+		goto free;
+	}
 
 	insert(4, a, 192, 168, 4, 0, 24);
 	insert(4, b, 192, 168, 4, 4, 32);
@@ -545,10 +576,10 @@ bool __init allowedips_selftest(void)
 	insert(4, c, 10, 1, 0, 8, 29);
 	insert(4, d, 10, 1, 0, 16, 29);
 
-#ifdef DEBUG_PRINT_TRIE_GRAPHVIZ
-	print_tree(t.root4, 32);
-	print_tree(t.root6, 128);
-#endif
+	if (IS_ENABLED(DEBUG_PRINT_TRIE_GRAPHVIZ)) {
+		print_tree(t.root4, 32);
+		print_tree(t.root6, 128);
+	}
 
 	success = true;
 
@@ -586,37 +617,39 @@ bool __init allowedips_selftest(void)
 	insert(4, a, 128, 0, 0, 0, 32);
 	insert(4, a, 192, 0, 0, 0, 32);
 	insert(4, a, 255, 0, 0, 0, 32);
-	allowedips_remove_by_peer(&t, a, &mutex);
+	wg_allowedips_remove_by_peer(&t, a, &mutex);
 	test_negative(4, a, 1, 0, 0, 0);
 	test_negative(4, a, 64, 0, 0, 0);
 	test_negative(4, a, 128, 0, 0, 0);
 	test_negative(4, a, 192, 0, 0, 0);
 	test_negative(4, a, 255, 0, 0, 0);
 
-	allowedips_free(&t, &mutex);
-	allowedips_init(&t);
+	wg_allowedips_free(&t, &mutex);
+	wg_allowedips_init(&t);
 	insert(4, a, 192, 168, 0, 0, 16);
 	insert(4, a, 192, 168, 0, 0, 24);
-	allowedips_remove_by_peer(&t, a, &mutex);
+	wg_allowedips_remove_by_peer(&t, a, &mutex);
 	test_negative(4, a, 192, 168, 0, 1);
 
-	/* These will hit the BUG_ON(len >= 128) in free_node if something goes wrong. */
+	/* These will hit the WARN_ON(len >= 128) in free_node if something
+	 * goes wrong.
+	 */
 	for (i = 0; i < 128; ++i) {
 		part = cpu_to_be64(~(1LLU << (i % 64)));
 		memset(&ip, 0xff, 16);
 		memcpy((u8 *)&ip + (i < 64) * 8, &part, 8);
-		allowedips_insert_v6(&t, &ip, 128, a, &mutex);
+		wg_allowedips_insert_v6(&t, &ip, 128, a, &mutex);
 	}
 
-	allowedips_free(&t, &mutex);
+	wg_allowedips_free(&t, &mutex);
 
-	allowedips_init(&t);
+	wg_allowedips_init(&t);
 	insert(4, a, 192, 95, 5, 93, 27);
 	insert(6, a, 0x26075300, 0x60006b00, 0, 0xc05f0543, 128);
 	insert(4, a, 10, 1, 0, 20, 29);
 	insert(6, a, 0x26075300, 0x6d8a6bf8, 0xdab1f1df, 0xc05f1523, 83);
 	insert(6, a, 0x26075300, 0x6d8a6bf8, 0xdab1f1df, 0xc05f1523, 21);
-	allowedips_walk_by_peer(&t, &cursor, a, walk_callback, &wctx, &mutex);
+	wg_allowedips_walk_by_peer(&t, cursor, a, walk_callback, &wctx, &mutex);
 	test_boolean(wctx.count == 5);
 	test_boolean(wctx.found_a);
 	test_boolean(wctx.found_b);
@@ -625,16 +658,14 @@ bool __init allowedips_selftest(void)
 	test_boolean(wctx.found_e);
 	test_boolean(!wctx.found_other);
 
-#ifdef DEBUG_RANDOM_TRIE
-	if (success)
+	if (IS_ENABLED(DEBUG_RANDOM_TRIE) && success)
 		success = randomized_test();
-#endif
 
 	if (success)
 		pr_info("allowedips self-tests: pass\n");
 
 free:
-	allowedips_free(&t, &mutex);
+	wg_allowedips_free(&t, &mutex);
 	kfree(a);
 	kfree(b);
 	kfree(c);
@@ -644,6 +675,7 @@ free:
 	kfree(g);
 	kfree(h);
 	mutex_unlock(&mutex);
+	kfree(cursor);
 
 	return success;
 }

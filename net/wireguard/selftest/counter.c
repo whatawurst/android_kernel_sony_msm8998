@@ -1,10 +1,10 @@
-/* SPDX-License-Identifier: GPL-2.0
- *
+// SPDX-License-Identifier: GPL-2.0
+/*
  * Copyright (C) 2015-2018 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
  */
 
 #ifdef DEBUG
-bool __init packet_counter_selftest(void)
+bool __init wg_packet_counter_selftest(void)
 {
 	unsigned int test_num = 0, i;
 	union noise_counter counter;
@@ -18,8 +18,8 @@ bool __init packet_counter_selftest(void)
 #define T(n, v) do {                                                  \
 		++test_num;                                           \
 		if (counter_validate(&counter, n) != v) {             \
-			pr_info("nonce counter self-test %u: FAIL\n", \
-				test_num);                            \
+			pr_err("nonce counter self-test %u: FAIL\n",  \
+			       test_num);                             \
 			success = false;                              \
 		}                                                     \
 	} while (0)

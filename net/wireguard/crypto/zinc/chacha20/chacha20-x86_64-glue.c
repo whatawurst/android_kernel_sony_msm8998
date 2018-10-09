@@ -1,37 +1,33 @@
-/* SPDX-License-Identifier: GPL-2.0
- *
+// SPDX-License-Identifier: GPL-2.0 OR MIT
+/*
  * Copyright (C) 2015-2018 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
  */
 
-#include <zinc/chacha20.h>
 #include <asm/fpu/api.h>
 #include <asm/cpufeature.h>
 #include <asm/processor.h>
 #include <asm/intel-family.h>
 
-#ifdef CONFIG_AS_SSSE3
-asmlinkage void hchacha20_ssse3(u8 *derived_key, const u8 *nonce,
+asmlinkage void hchacha20_ssse3(u32 *derived_key, const u8 *nonce,
 				const u8 *key);
 asmlinkage void chacha20_ssse3(u8 *out, const u8 *in, const size_t len,
 			       const u32 key[8], const u32 counter[4]);
-#endif
-#ifdef CONFIG_AS_AVX2
 asmlinkage void chacha20_avx2(u8 *out, const u8 *in, const size_t len,
 			      const u32 key[8], const u32 counter[4]);
-#endif
-#ifdef CONFIG_AS_AVX512
 asmlinkage void chacha20_avx512(u8 *out, const u8 *in, const size_t len,
 				const u32 key[8], const u32 counter[4]);
 asmlinkage void chacha20_avx512vl(u8 *out, const u8 *in, const size_t len,
 				  const u32 key[8], const u32 counter[4]);
-#endif
 
 static bool chacha20_use_ssse3 __ro_after_init;
 static bool chacha20_use_avx2 __ro_after_init;
 static bool chacha20_use_avx512 __ro_after_init;
 static bool chacha20_use_avx512vl __ro_after_init;
+static bool *const chacha20_nobs[] __initconst = {
+	&chacha20_use_ssse3, &chacha20_use_avx2, &chacha20_use_avx512,
+	&chacha20_use_avx512vl };
 
-void __init chacha20_fpu_init(void)
+static void __init chacha20_fpu_init(void)
 {
 	chacha20_use_ssse3 = boot_cpu_has(X86_FEATURE_SSSE3);
 	chacha20_use_avx2 =
@@ -57,48 +53,53 @@ void __init chacha20_fpu_init(void)
 #endif
 }
 
-static inline bool chacha20_arch(u8 *dst, const u8 *src, const size_t len,
-				 const u32 key[8], const u32 counter[4],
-				 simd_context_t simd_context)
+static inline bool chacha20_arch(struct chacha20_ctx *ctx, u8 *dst,
+				 const u8 *src, size_t len,
+				 simd_context_t *simd_context)
 {
-	if (simd_context != HAVE_FULL_SIMD)
+	/* SIMD disables preemption, so relax after processing each page. */
+	BUILD_BUG_ON(PAGE_SIZE < CHACHA20_BLOCK_SIZE ||
+		     PAGE_SIZE % CHACHA20_BLOCK_SIZE);
+
+	if (!IS_ENABLED(CONFIG_AS_SSSE3) || !chacha20_use_ssse3 ||
+	    len <= CHACHA20_BLOCK_SIZE || !simd_use(simd_context))
 		return false;
 
-#ifdef CONFIG_AS_AVX512
-	if (chacha20_use_avx512) {
-		chacha20_avx512(dst, src, len, key, counter);
-		return true;
+	for (;;) {
+		const size_t bytes = min_t(size_t, len, PAGE_SIZE);
+
+		if (IS_ENABLED(CONFIG_AS_AVX512) && chacha20_use_avx512 &&
+		    len >= CHACHA20_BLOCK_SIZE * 8)
+			chacha20_avx512(dst, src, bytes, ctx->key, ctx->counter);
+		else if (IS_ENABLED(CONFIG_AS_AVX512) && chacha20_use_avx512vl &&
+			 len >= CHACHA20_BLOCK_SIZE * 4)
+			chacha20_avx512vl(dst, src, bytes, ctx->key, ctx->counter);
+		else if (IS_ENABLED(CONFIG_AS_AVX2) && chacha20_use_avx2 &&
+			 len >= CHACHA20_BLOCK_SIZE * 4)
+			chacha20_avx2(dst, src, bytes, ctx->key, ctx->counter);
+		else
+			chacha20_ssse3(dst, src, bytes, ctx->key, ctx->counter);
+		ctx->counter[0] += (bytes + 63) / 64;
+		len -= bytes;
+		if (!len)
+			break;
+		dst += bytes;
+		src += bytes;
+		simd_relax(simd_context);
 	}
-	if (chacha20_use_avx512vl) {
-		chacha20_avx512vl(dst, src, len, key, counter);
-		return true;
-	}
-#endif
-#ifdef CONFIG_AS_AVX2
-	if (chacha20_use_avx2) {
-		chacha20_avx2(dst, src, len, key, counter);
-		return true;
-	}
-#endif
-#ifdef CONFIG_AS_SSSE3
-	if (chacha20_use_ssse3) {
-		chacha20_ssse3(dst, src, len, key, counter);
-		return true;
-	}
-#endif
-	return false;
+
+	return true;
 }
 
-static inline bool hchacha20_arch(u8 *derived_key, const u8 *nonce,
-				  const u8 *key, simd_context_t simd_context)
+static inline bool hchacha20_arch(u32 derived_key[CHACHA20_KEY_WORDS],
+				  const u8 nonce[HCHACHA20_NONCE_SIZE],
+				  const u8 key[HCHACHA20_KEY_SIZE],
+				  simd_context_t *simd_context)
 {
-#if defined(CONFIG_AS_SSSE3)
-	if (simd_context == HAVE_FULL_SIMD && chacha20_use_ssse3) {
+	if (IS_ENABLED(CONFIG_AS_SSSE3) && chacha20_use_ssse3 &&
+	    simd_use(simd_context)) {
 		hchacha20_ssse3(derived_key, nonce, key);
 		return true;
 	}
-#endif
 	return false;
 }
-
-#define HAVE_CHACHA20_ARCH_IMPLEMENTATION
