@@ -14,6 +14,11 @@
  * GNU General Public License for more details.
  *
  */
+/*
+ * NOTE: This file has been modified by Sony Mobile Communications Inc.
+ * Modifications are Copyright (c) 2017 Sony Mobile Communications Inc,
+ * and licensed under the license of the file.
+ */
 
 #include <linux/msm_audio_aac.h>
 #include <linux/compat.h>
@@ -110,7 +115,7 @@ static long audio_ioctl_shared(struct file *file, unsigned int cmd,
 			pr_err("cmd media format block failed\n");
 			break;
 		}
-		rc = q6asm_set_encdec_chan_map(audio->ac, 2);
+		rc = q6asm_set_encdec_chan_map(audio->ac, aac_cfg.ch_cfg);
 		if (rc < 0) {
 			pr_err("%s: cmd set encdec_chan_map failed\n",
 				__func__);

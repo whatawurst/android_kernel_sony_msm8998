@@ -13,6 +13,11 @@
  * GNU General Public License for more details.
  *
  */
+/*
+ * NOTE: This file has been modified by Sony Mobile Communications Inc.
+ * Modifications are Copyright (c) 2017 Sony Mobile Communications Inc,
+ * and licensed under the license of the file.
+ */
 
 #include <linux/device.h>
 #include <linux/usb/audio.h>
@@ -246,6 +251,7 @@ struct audio_source_config {
 
 struct audio_dev {
 	struct usb_function		func;
+	u8				ctrl_id;
 	struct snd_card			*card;
 	struct snd_pcm			*pcm;
 	struct snd_pcm_substream *substream;
@@ -616,9 +622,12 @@ static int audio_set_alt(struct usb_function *f, unsigned intf, unsigned alt)
  * Because the data interface supports multiple altsettings,
  * this audio_source function *MUST* implement a get_alt() method.
  */
-static int audio_get_alt(struct usb_function *f, unsigned int intf)
+static int audio_get_alt(struct usb_function *f, unsigned intf)
 {
-	struct audio_dev	*audio = func_to_audio(f);
+	struct audio_dev *audio = func_to_audio(f);
+	if (intf == audio->ctrl_id) {
+		return 0;
+	}
 
 	return audio->in_ep->enabled ? 1 : 0;
 }
@@ -689,6 +698,8 @@ audio_bind(struct usb_configuration *c, struct usb_function *f)
 	status = usb_interface_id(c, f);
 	if (status < 0)
 		goto fail;
+	audio->ctrl_id = status;
+
 	ac_interface_desc.bInterfaceNumber = status;
 
 	/* AUDIO_AC_INTERFACE */

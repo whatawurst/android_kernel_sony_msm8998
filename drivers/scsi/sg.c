@@ -433,6 +433,9 @@ sg_read(struct file *filp, char __user *buf, size_t count, loff_t * ppos)
 	struct sg_header *old_hdr = NULL;
 	int retval = 0;
 
+	if (unlikely(segment_eq(get_fs(), KERNEL_DS)))
+		return -EINVAL;
+
 	/*
 	 * This could cause a response to be stranded. Close the associated
 	 * file descriptor to free up any resources being held.
@@ -979,6 +982,8 @@ sg_ioctl(struct file *filp, unsigned int cmd_in, unsigned long arg)
 		 * return an error value. So returning '0' to keep compability
 		 * with legacy applications.
 		 */
+				mutex_lock(&sfp->parentdp->open_rel_lock);
+				mutex_unlock(&sfp->parentdp->open_rel_lock);
 		return 0;
 	case SG_GET_LOW_DMA:
 		return put_user((int) sdp->device->host->unchecked_isa_dma, ip);

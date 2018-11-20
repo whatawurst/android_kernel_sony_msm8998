@@ -10,6 +10,11 @@
  * GNU General Public License for more details.
  *
  */
+/*
+ * NOTE: This file has been modified by Sony Mobile Communications Inc.
+ * Modifications are Copyright (c) 2017 Sony Mobile Communications Inc,
+ * and licensed under the license of the file.
+ */
 
 #define pr_fmt(fmt)	"%s: " fmt, __func__
 
@@ -5425,6 +5430,10 @@ static int mdss_mdp_overlay_ioctl_handler(struct msm_fb_data_type *mfd,
 	struct msmfb_overlay_data data;
 	struct mdp_set_cfg cfg;
 
+#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
+	if (mfd->spec_mfd.off_sts)
+		return 0;
+#endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
 	switch (cmd) {
 	case MSMFB_MDP_PP:
 		ret = mdss_mdp_pp_ioctl(mfd, argp);
@@ -6375,8 +6384,15 @@ void mdss_mdp_footswitch_ctrl_handler(bool on)
 static void mdss_mdp_signal_retire_fence(struct msm_fb_data_type *mfd,
 					 int retire_cnt)
 {
-	__vsync_retire_signal(mfd, retire_cnt);
+	struct mdss_overlay_private *mdp5_data = mfd_to_mdp5_data(mfd);
+
 	pr_debug("Signaled (%d) pending retire fence\n", retire_cnt);
+	if (!mdp5_data->ctl || !mdp5_data->ctl->mfd)
+		return;
+
+	if (!mdp5_data->ctl->ops.remove_vsync_handler)
+		return;
+	__vsync_retire_signal(mfd, retire_cnt);
 }
 
 int mdss_mdp_overlay_init(struct msm_fb_data_type *mfd)
