@@ -2100,18 +2100,16 @@ static u32 top_task_load(struct rq *rq)
 	return ret_val;
 }
 
-static int load_to_index(u32 load)
+static u32 load_to_index(u32 load)
 {
 	u32 sched_granule_load;
+	u32 index;
 
 	sched_granule_load = READ_ONCE(sched_load_granule);
 
-	if (load < sched_granule_load)
-		return 0;
-	else if (load >= sched_ravg_window)
-		return NUM_LOAD_INDICES - 1;
-	else
-		return load / sched_granule_load;
+	index = load / sched_granule_load;
+
+	return min(index, (u32)(NUM_LOAD_INDICES - 1));
 }
 
 static void update_top_tasks(struct task_struct *p, struct rq *rq,
