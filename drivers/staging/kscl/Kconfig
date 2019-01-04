@@ -1,0 +1,7 @@
+config SONY_FIPS_KSCL
+	tristate "Sony FIPS AES-XTS/AES-CBC driver"
+	depends on ARCH_SONY_YOSHINO
+	default n
+	---help---
+	This driver support Netlogic XLR/XLS on chip gigabit
+	Ethernet.
