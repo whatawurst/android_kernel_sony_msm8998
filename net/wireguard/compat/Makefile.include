@@ -1,15 +1,11 @@
 # SPDX-License-Identifier: GPL-2.0
 #
-# Copyright (C) 2015-2018 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
+# Copyright (C) 2015-2019 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
 
-ifeq ($(wildcard $(src)/compat/compat.h),)
-cmd_include_path_prefix := $(srctree)/$(src)
-else
-cmd_include_path_prefix := $(src)
-endif
+kbuild-dir := $(if $(filter /%,$(src)),$(src),$(srctree)/$(src))
 
-ccflags-y += -include $(cmd_include_path_prefix)/compat/compat.h
-asflags-y += -include $(cmd_include_path_prefix)/compat/compat-asm.h
+ccflags-y += -include $(kbuild-dir)/compat/compat.h
+asflags-y += -include $(kbuild-dir)/compat/compat-asm.h
 
 ifeq ($(wildcard $(srctree)/include/linux/ptr_ring.h),)
 ccflags-y += -I$(src)/compat/ptr_ring/include
@@ -33,7 +29,7 @@ ifeq ($(wildcard $(srctree)/arch/x86/include/asm/fpu/api.h)$(CONFIG_X86),y)
 ccflags-y += -I$(src)/compat/fpu-x86/include
 endif
 
-ifeq ($(wildcard $(srctree)/arch/$(SRCARCH)/include/asm/simd.h)$(shell grep -F "generic-y += simd.h" "$(srctree)/arch/$(SRCARCH)/Makefile"),)
+ifeq ($(wildcard $(srctree)/arch/$(SRCARCH)/include/asm/simd.h)$(shell grep -s -F "generic-y += simd.h" "$(srctree)/arch/$(SRCARCH)/Makefile" "$(srctree)/arch/$(SRCARCH)/Makefile"),)
 ccflags-y += -I$(src)/compat/simd-asm/include
 endif
 
@@ -46,8 +42,8 @@ ccflags-y += -I$(src)/compat/udp_tunnel/include
 wireguard-y += compat/udp_tunnel/udp_tunnel.o
 endif
 
-ifeq ($(shell grep -F "int crypto_memneq" "$(srctree)/include/crypto/algapi.h"),)
-ccflags-y += -include $(cmd_include_path_prefix)/compat/memneq/include.h
+ifeq ($(shell grep -s -F "int crypto_memneq" "$(srctree)/include/crypto/algapi.h"),)
+ccflags-y += -include $(kbuild-dir)/compat/memneq/include.h
 wireguard-y += compat/memneq/memneq.o
 endif
 

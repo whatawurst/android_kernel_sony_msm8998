@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015-2018 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
+ * Copyright (C) 2015-2019 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
  */
 
 #ifndef _WG_QUEUEING_H
@@ -12,8 +12,8 @@
 #include <linux/ip.h>
 #include <linux/ipv6.h>
 
-struct wireguard_device;
-struct wireguard_peer;
+struct wg_device;
+struct wg_peer;
 struct multicore_worker;
 struct crypt_queue;
 struct sk_buff;
@@ -26,7 +26,7 @@ struct multicore_worker __percpu *
 wg_packet_alloc_percpu_multicore_worker(work_func_t function, void *ptr);
 
 /* receive.c APIs: */
-void wg_packet_receive(struct wireguard_device *wg, struct sk_buff *skb);
+void wg_packet_receive(struct wg_device *wg, struct sk_buff *skb);
 void wg_packet_handshake_receive_worker(struct work_struct *work);
 /* NAPI poll function: */
 int wg_packet_rx_poll(struct napi_struct *napi, int budget);
@@ -34,14 +34,15 @@ int wg_packet_rx_poll(struct napi_struct *napi, int budget);
 void wg_packet_decrypt_worker(struct work_struct *work);
 
 /* send.c APIs: */
-void wg_packet_send_queued_handshake_initiation(struct wireguard_peer *peer,
+void wg_packet_send_queued_handshake_initiation(struct wg_peer *peer,
 						bool is_retry);
-void wg_packet_send_handshake_response(struct wireguard_peer *peer);
-void wg_packet_send_handshake_cookie(struct wireguard_device *wg,
+void wg_packet_send_handshake_response(struct wg_peer *peer);
+void wg_packet_send_handshake_cookie(struct wg_device *wg,
 				     struct sk_buff *initiating_skb,
 				     __le32 sender_index);
-void wg_packet_send_keepalive(struct wireguard_peer *peer);
-void wg_packet_send_staged_packets(struct wireguard_peer *peer);
+void wg_packet_send_keepalive(struct wg_peer *peer);
+void wg_packet_purge_staged_packets(struct wg_peer *peer);
+void wg_packet_send_staged_packets(struct wg_peer *peer);
 /* Workqueue workers: */
 void wg_packet_handshake_send_worker(struct work_struct *work);
 void wg_packet_tx_worker(struct work_struct *work);
@@ -61,8 +62,8 @@ struct packet_cb {
 	u8 ds;
 };
 
-#define PACKET_PEER(skb) (((struct packet_cb *)skb->cb)->keypair->entry.peer)
-#define PACKET_CB(skb) ((struct packet_cb *)skb->cb)
+#define PACKET_CB(skb) ((struct packet_cb *)((skb)->cb))
+#define PACKET_PEER(skb) (PACKET_CB(skb)->keypair->entry.peer)
 
 /* Returns either the correct skb->protocol value, or 0 if invalid. */
 static inline __be16 wg_skb_examine_untrusted_ip_hdr(struct sk_buff *skb)
@@ -83,6 +84,7 @@ static inline __be16 wg_skb_examine_untrusted_ip_hdr(struct sk_buff *skb)
 static inline void wg_reset_packet(struct sk_buff *skb)
 {
 	const int pfmemalloc = skb->pfmemalloc;
+
 	skb_scrub_packet(skb, true);
 	memset(&skb->headers_start, 0,
 	       offsetof(struct sk_buff, headers_end) -
@@ -165,7 +167,8 @@ static inline void wg_queue_enqueue_per_peer(struct crypt_queue *queue,
 	/* We take a reference, because as soon as we call atomic_set, the
 	 * peer can be freed from below us.
 	 */
-	struct wireguard_peer *peer = wg_peer_get(PACKET_PEER(skb));
+	struct wg_peer *peer = wg_peer_get(PACKET_PEER(skb));
+
 	atomic_set_release(&PACKET_CB(skb)->state, state);
 	queue_work_on(wg_cpumask_choose_online(&peer->serial_work_cpu,
 					       peer->internal_id),
@@ -180,7 +183,8 @@ static inline void wg_queue_enqueue_per_peer_napi(struct crypt_queue *queue,
 	/* We take a reference, because as soon as we call atomic_set, the
 	 * peer can be freed from below us.
 	 */
-	struct wireguard_peer *peer = wg_peer_get(PACKET_PEER(skb));
+	struct wg_peer *peer = wg_peer_get(PACKET_PEER(skb));
+
 	atomic_set_release(&PACKET_CB(skb)->state, state);
 	napi_schedule(&peer->napi);
 	wg_peer_put(peer);

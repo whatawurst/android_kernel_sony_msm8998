@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 OR MIT
 /*
  * Copyright (C) 2015-2016 The fiat-crypto Authors.
- * Copyright (C) 2018 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
+ * Copyright (C) 2018-2019 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
  *
  * This is a machine-generated formally verified implementation of Curve25519
  * ECDH from: <https://github.com/mit-plv/fiat-crypto>. Though originally
@@ -618,7 +618,7 @@ static __always_inline void fe_invert(fe *out, const fe *z)
 static __always_inline void fe_cswap(fe *f, fe *g, unsigned int b)
 {
 	unsigned i;
-	b = 0-b;
+	b = 0 - b;
 	for (i = 0; i < 10; i++) {
 		u32 x = f->v[i] ^ g->v[i];
 		x &= b;
@@ -760,7 +760,7 @@ static void curve25519_generic(u8 out[CURVE25519_KEY_SIZE],
 	u8 e[32];
 
 	memcpy(e, scalar, 32);
-	normalize_secret(e);
+	clamp_secret(e);
 
 	/* The following implementation was transcribed to Coq and proven to
 	 * correspond to unary scalar multiplication in affine coordinates given

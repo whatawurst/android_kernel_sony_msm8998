@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2015-2018 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
+ * Copyright (C) 2015-2019 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
  */
 
 #include "hashtables.h"
@@ -14,9 +14,9 @@ static struct hlist_head *pubkey_bucket(struct pubkey_hashtable *table,
 	 * the bits are uniformly distributed, we can then mask off to get the
 	 * bits we need.
 	 */
-	return &table->hashtable[
-		siphash(pubkey, NOISE_PUBLIC_KEY_LEN, &table->key) &
-			(HASH_SIZE(table->hashtable) - 1)];
+	const u64 hash = siphash(pubkey, NOISE_PUBLIC_KEY_LEN, &table->key);
+
+	return &table->hashtable[hash & (HASH_SIZE(table->hashtable) - 1)];
 }
 
 void wg_pubkey_hashtable_init(struct pubkey_hashtable *table)
@@ -27,7 +27,7 @@ void wg_pubkey_hashtable_init(struct pubkey_hashtable *table)
 }
 
 void wg_pubkey_hashtable_add(struct pubkey_hashtable *table,
-			     struct wireguard_peer *peer)
+			     struct wg_peer *peer)
 {
 	mutex_lock(&table->lock);
 	hlist_add_head_rcu(&peer->pubkey_hash,
@@ -36,7 +36,7 @@ void wg_pubkey_hashtable_add(struct pubkey_hashtable *table,
 }
 
 void wg_pubkey_hashtable_remove(struct pubkey_hashtable *table,
-				struct wireguard_peer *peer)
+				struct wg_peer *peer)
 {
 	mutex_lock(&table->lock);
 	hlist_del_init_rcu(&peer->pubkey_hash);
@@ -44,15 +44,15 @@ void wg_pubkey_hashtable_remove(struct pubkey_hashtable *table,
 }
 
 /* Returns a strong reference to a peer */
-struct wireguard_peer *
+struct wg_peer *
 wg_pubkey_hashtable_lookup(struct pubkey_hashtable *table,
 			   const u8 pubkey[NOISE_PUBLIC_KEY_LEN])
 {
-	struct wireguard_peer *iter_peer, *peer = NULL;
+	struct wg_peer *iter_peer, *peer = NULL;
 
 	rcu_read_lock_bh();
-	hlist_for_each_entry_rcu_bh (iter_peer, pubkey_bucket(table, pubkey),
-				     pubkey_hash) {
+	hlist_for_each_entry_rcu_bh(iter_peer, pubkey_bucket(table, pubkey),
+				    pubkey_hash) {
 		if (!memcmp(pubkey, iter_peer->handshake.remote_static,
 			    NOISE_PUBLIC_KEY_LEN)) {
 			peer = iter_peer;
@@ -118,9 +118,9 @@ __le32 wg_index_hashtable_insert(struct index_hashtable *table,
 search_unused_slot:
 	/* First we try to find an unused slot, randomly, while unlocked. */
 	entry->index = (__force __le32)get_random_u32();
-	hlist_for_each_entry_rcu_bh (existing_entry,
-				     index_bucket(table, entry->index),
-				     index_hash) {
+	hlist_for_each_entry_rcu_bh(existing_entry,
+				    index_bucket(table, entry->index),
+				    index_hash) {
 		if (existing_entry->index == entry->index)
 			/* If it's already in use, we continue searching. */
 			goto search_unused_slot;
@@ -130,9 +130,9 @@ search_unused_slot:
 	 * that nobody else stole it from us.
 	 */
 	spin_lock_bh(&table->lock);
-	hlist_for_each_entry_rcu_bh (existing_entry,
-				     index_bucket(table, entry->index),
-				     index_hash) {
+	hlist_for_each_entry_rcu_bh(existing_entry,
+				    index_bucket(table, entry->index),
+				    index_hash) {
 		if (existing_entry->index == entry->index) {
 			spin_unlock_bh(&table->lock);
 			/* If it was stolen, we start over. */
@@ -184,13 +184,13 @@ void wg_index_hashtable_remove(struct index_hashtable *table,
 struct index_hashtable_entry *
 wg_index_hashtable_lookup(struct index_hashtable *table,
 			  const enum index_hashtable_type type_mask,
-			  const __le32 index, struct wireguard_peer **peer)
+			  const __le32 index, struct wg_peer **peer)
 {
 	struct index_hashtable_entry *iter_entry, *entry = NULL;
 
 	rcu_read_lock_bh();
-	hlist_for_each_entry_rcu_bh (iter_entry, index_bucket(table, index),
-				     index_hash) {
+	hlist_for_each_entry_rcu_bh(iter_entry, index_bucket(table, index),
+				    index_hash) {
 		if (iter_entry->index == index) {
 			if (likely(iter_entry->type & type_mask))
 				entry = iter_entry;

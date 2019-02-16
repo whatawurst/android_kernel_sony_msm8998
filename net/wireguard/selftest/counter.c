@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2015-2018 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
+ * Copyright (C) 2015-2019 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
  */
 
 #ifdef DEBUG
@@ -17,7 +17,7 @@ bool __init wg_packet_counter_selftest(void)
 #define T_LIM (COUNTER_WINDOW_SIZE + 1)
 #define T(n, v) do {                                                  \
 		++test_num;                                           \
-		if (counter_validate(&counter, n) != v) {             \
+		if (counter_validate(&counter, n) != (v)) {           \
 			pr_err("nonce counter self-test %u: FAIL\n",  \
 			       test_num);                             \
 			success = false;                              \
@@ -92,6 +92,7 @@ bool __init wg_packet_counter_selftest(void)
 		T(i, true);
 	T(0, true);
 	T(COUNTER_WINDOW_SIZE + 1, true);
+
 #undef T
 #undef T_LIM
 #undef T_INIT

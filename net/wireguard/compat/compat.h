@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015-2018 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
+ * Copyright (C) 2015-2019 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
  */
 
 #ifndef _WG_COMPAT_H
@@ -149,6 +149,7 @@ static inline void netif_keep_dst(struct net_device *dev)
 {
 	dev->priv_flags &= ~IFF_XMIT_DST_RELEASE;
 }
+#define COMPAT_CANNOT_USE_CSUM_LEVEL
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0) && !defined(ISRHEL7)
@@ -502,7 +503,7 @@ static inline void kvfree_ours(const void *addr)
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0) && !defined(ISOPENSUSE15)
-#define newlink(a,b,c,d,e) newlink(a,b,c,d)
+#define wg_newlink(a,b,c,d,e) wg_newlink(a,b,c,d)
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0)
@@ -547,30 +548,36 @@ static inline struct nlattr **genl_family_attrbuf(const struct genl_family *fami
 #endif
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 2) && LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0)) || (LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 16) && LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)) || (LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 65) && LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)) || (LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 101) && LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)) || LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 84)
-#define ___COMPAT_NETLINK_DUMP_BLOCK { int ret; skb->end -= nlmsg_total_size(sizeof(int)); ret = get_device_dump_real(skb, cb); skb->end += nlmsg_total_size(sizeof(int)); return ret; }
+#define ___COMPAT_NETLINK_DUMP_BLOCK { \
+	int ret; \
+	skb->end -= nlmsg_total_size(sizeof(int)); \
+	ret = wg_get_device_dump_real(skb, cb); \
+	skb->end += nlmsg_total_size(sizeof(int)); \
+	return ret; \
+}
 #define ___COMPAT_NETLINK_DUMP_OVERRIDE
 #else
-#define ___COMPAT_NETLINK_DUMP_BLOCK return get_device_dump_real(skb, cb);
+#define ___COMPAT_NETLINK_DUMP_BLOCK return wg_get_device_dump_real(skb, cb);
 #endif
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 8) && LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0)) || (LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 25) && LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)) || LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 87)
-#define get_device_dump(a, b) get_device_dump_real(a, b); \
-static int get_device_dump(a, b) { \
-	struct wireguard_device *wg = (struct wireguard_device *)cb->args[0]; \
+#define wg_get_device_dump(a, b) wg_get_device_dump_real(a, b); \
+static int wg_get_device_dump(a, b) { \
+	struct wg_device *wg = (struct wg_device *)cb->args[0]; \
 	if (!wg) { \
-		int ret = get_device_start(cb); \
+		int ret = wg_get_device_start(cb); \
 		if (ret) \
 			return ret; \
 	} \
 	___COMPAT_NETLINK_DUMP_BLOCK \
 } \
-static int get_device_dump_real(a, b)
+static int wg_get_device_dump_real(a, b)
 #define COMPAT_CANNOT_USE_NETLINK_START
 #elif defined(___COMPAT_NETLINK_DUMP_OVERRIDE)
-#define get_device_dump(a, b) get_device_dump_real(a, b); \
-static int get_device_dump(a, b) { \
+#define wg_get_device_dump(a, b) wg_get_device_dump_real(a, b); \
+static int wg_get_device_dump(a, b) { \
 	___COMPAT_NETLINK_DUMP_BLOCK \
 } \
-static int get_device_dump_real(a, b)
+static int wg_get_device_dump_real(a, b)
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
@@ -640,7 +647,7 @@ struct _____dummy_container { char dev; };
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
 #define timespec64 timespec
-#define getnstimeofday64 getnstimeofday
+#define ktime_get_real_ts64 ktime_get_real_ts
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0)
@@ -741,8 +748,26 @@ static inline void crypto_xor_cpy(u8 *dst, const u8 *src1, const u8 *src2,
 #define hlist_add_behind(a, b) hlist_add_after(b, a)
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0)
+#define totalram_pages() totalram_pages
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 18, 0)
+struct __kernel_timespec {
+	int64_t tv_sec, tv_nsec;
+};
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0)
+#include <linux/time64.h>
+#ifdef __kernel_timespec
+#undef __kernel_timespec
+struct __kernel_timespec {
+	int64_t tv_sec, tv_nsec;
+};
+#endif
+#endif
+
 /* https://github.com/ClangBuiltLinux/linux/issues/7 */
-#ifdef __clang__
+#if defined( __clang__) && (!defined(CONFIG_CLANG_VERSION) || CONFIG_CLANG_VERSION < 80000)
 #include <linux/bug.h>
 #undef BUILD_BUG_ON
 #define BUILD_BUG_ON(x)
@@ -786,13 +811,13 @@ static inline void new_icmpv6_send(struct sk_buff *skb, u8 type, u8 code, __u32 
 #undef __read_mostly
 #define __read_mostly
 #endif
-#if defined(RAP_PLUGIN) && LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0)
+#if (defined(RAP_PLUGIN) || defined(CONFIG_CFI_CLANG)) && LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0)
 #include <linux/timer.h>
-#define expired_retransmit_handshake(a) expired_retransmit_handshake(unsigned long timer)
-#define expired_send_keepalive(a) expired_send_keepalive(unsigned long timer)
-#define expired_new_handshake(a) expired_new_handshake(unsigned long timer)
-#define expired_zero_key_material(a) expired_zero_key_material(unsigned long timer)
-#define expired_send_persistent_keepalive(a) expired_send_persistent_keepalive(unsigned long timer)
+#define wg_expired_retransmit_handshake(a) wg_expired_retransmit_handshake(unsigned long timer)
+#define wg_expired_send_keepalive(a) wg_expired_send_keepalive(unsigned long timer)
+#define wg_expired_new_handshake(a) wg_expired_new_handshake(unsigned long timer)
+#define wg_expired_zero_key_material(a) wg_expired_zero_key_material(unsigned long timer)
+#define wg_expired_send_persistent_keepalive(a) wg_expired_send_persistent_keepalive(unsigned long timer)
 #undef timer_setup
 #define timer_setup(a, b, c) setup_timer(a, ((void (*)(unsigned long))b), ((unsigned long)a))
 #undef from_timer
