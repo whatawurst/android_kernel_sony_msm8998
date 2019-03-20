@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015-2018 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
+ * Copyright (C) 2015-2019 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
  */
 
 #ifndef _WG_DEVICE_H
@@ -18,7 +18,7 @@
 #include <linux/net.h>
 #include <linux/ptr_ring.h>
 
-struct wireguard_device;
+struct wg_device;
 
 struct multicore_worker {
 	void *ptr;
@@ -36,7 +36,7 @@ struct crypt_queue {
 	};
 };
 
-struct wireguard_device {
+struct wg_device {
 	struct net_device *dev;
 	struct crypt_queue encrypt_queue, decrypt_queue;
 	struct sock __rcu *sock4, *sock6;

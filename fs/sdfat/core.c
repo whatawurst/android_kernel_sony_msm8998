@@ -143,7 +143,7 @@ static s32 __fs_set_vol_flags(struct super_block *sb, u16 new_flag, s32 always_s
 	/* skip updating volume dirty flag,
 	 * if this volume has been mounted with read-only
 	 */
-	if (sb->s_flags & MS_RDONLY)
+	if (SDFAT_IS_SB_RDONLY(sb))
 		return 0;
 
 	if (!fsi->pbr_bh) {
@@ -1621,6 +1621,12 @@ s32 fscore_shutdown(void)
 	return 0;
 }
 
+/* check device is ejected */
+s32 fscore_check_bdi_valid(struct super_block *sb)
+{
+	return bdev_check_bdi_valid(sb);
+}
+
 static bool is_exfat(pbr_t *pbr)
 {
 	int i = 53;
@@ -1703,6 +1709,7 @@ s32 fscore_mount(struct super_block *sb)
 	pbr_t *p_pbr;
 	struct buffer_head *tmp_bh = NULL;
 	struct gendisk *disk = sb->s_bdev->bd_disk;
+	struct hd_struct *part = sb->s_bdev->bd_part;
 	struct sdfat_mount_options *opts = &(SDFAT_SB(sb)->options);
 	FS_INFO_T *fsi = &(SDFAT_SB(sb)->fsi);
 
@@ -1802,9 +1809,11 @@ free_bh:
 		"misaligned" : "aligned");
 
 	sdfat_log_msg(sb, KERN_INFO,
-		"detected volume size     : %llu MB (disk_size : %llu MB)",
-		fsi->num_sectors >> 11,
-		disk ? (u64)((disk->part0.nr_sects) >> 11) : 0);
+		"detected volume size     : %llu KB (disk : %llu KB, "
+		"part : %llu KB)",
+		(fsi->num_sectors * (sb->s_blocksize >> SECTOR_SIZE_BITS)) >> 1,
+		disk ? (u64)((disk->part0.nr_sects) >> 1) : 0,
+		part ? (u64)((part->nr_sects) >> 1) : 0);
 
 	ret = load_upcase_table(sb);
 	if (ret) {
@@ -1947,10 +1956,10 @@ s32 fscore_lookup(struct inode *inode, u8 *path, FILE_ID_T *fid)
 		return ret;
 
 	/* check the validation of hint_stat and initialize it if required */
-	if (dir_fid->version != (u32)(inode->i_version & 0xffffffff)) {
+	if (dir_fid->version != (u32)(GET_IVERSION(inode) & 0xffffffff)) {
 		dir_fid->hint_stat.clu = dir.dir;
 		dir_fid->hint_stat.eidx = 0;
-		dir_fid->version = (u32)(inode->i_version & 0xffffffff);
+		dir_fid->version = (u32)(GET_IVERSION(inode) & 0xffffffff);
 		dir_fid->hint_femp.eidx = -1;
 	}
 

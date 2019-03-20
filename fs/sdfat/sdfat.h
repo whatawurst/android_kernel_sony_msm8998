@@ -33,6 +33,38 @@
 #include "dfr.h"
 #endif
 
+/*************************************************************************
+ * FUNCTIONS WHICH HAS KERNEL VERSION DEPENDENCY
+ *************************************************************************/
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 16, 0)
+#include <linux/iversion.h>
+#define INC_IVERSION(x)		(inode_inc_iversion(x))
+#define GET_IVERSION(x)		(inode_peek_iversion_raw(x))
+#define SET_IVERSION(x,y)	(inode_set_iversion(x, y))
+#else
+#define INC_IVERSION(x)		(x->i_version++)
+#define GET_IVERSION(x)		(x->i_version)
+#define SET_IVERSION(x,y)	(x->i_version = y)
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 18, 0)
+#define timespec_compat	timespec64
+#else
+#define timespec_compat	timespec
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 18, 0)
+#define CURRENT_TIME_SEC	timespec64_trunc(current_kernel_time64(), NSEC_PER_SEC)
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
+#define CURRENT_TIME_SEC	timespec_trunc(current_kernel_time(), NSEC_PER_SEC)
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
+#define SDFAT_IS_SB_RDONLY(sb)	((sb)->s_flags & MS_RDONLY)
+#else
+#define SDFAT_IS_SB_RDONLY(sb)	((sb)->s_flags & SB_RDONLY)
+#endif
+
 /*
  * sdfat error flags
  */
@@ -127,7 +159,7 @@ struct sdfat_mount_options {
 	unsigned char errors;       /* on error: continue, panic, remount-ro */
 	unsigned char discard;      /* flag on if -o dicard specified and device support discard() */
 	unsigned char fs_type;      /* fs_type that user specified */
-	unsigned short adj_req;      /* support aligned mpage write */
+	unsigned short adj_req;     /* support aligned mpage write */
 };
 
 #define SDFAT_HASH_BITS    8
@@ -301,6 +333,7 @@ static inline void sdfat_save_attr(struct inode *inode, u32 attr)
 extern int sdfat_statistics_init(struct kset *sdfat_kset);
 extern void sdfat_statistics_uninit(void);
 extern void sdfat_statistics_set_mnt(FS_INFO_T *fsi);
+extern void sdfat_statistics_set_mnt_ro(void);
 extern void sdfat_statistics_set_mkdir(u8 flags);
 extern void sdfat_statistics_set_create(u8 flags);
 extern void sdfat_statistics_set_rw(u8 flags, u32 clu_offset, s32 create);
@@ -313,6 +346,7 @@ static inline int sdfat_statistics_init(struct kset *sdfat_kset)
 }
 static inline void sdfat_statistics_uninit(void) {};
 static inline void sdfat_statistics_set_mnt(FS_INFO_T *fsi) {};
+static inline void sdfat_statistics_set_mnt_ro(void) {};
 static inline void sdfat_statistics_set_mkdir(u8 flags) {};
 static inline void sdfat_statistics_set_create(u8 flags) {};
 static inline void sdfat_statistics_set_rw(u8 flags, u32 clu_offset, s32 create) {};
@@ -363,9 +397,9 @@ __sdfat_msg(struct super_block *sb, const char *lv, int st, const char *fmt, ...
 #define sdfat_log_msg(sb, lv, fmt, args...)          \
 	__sdfat_msg(sb, lv, 1, fmt, ## args)
 extern void sdfat_log_version(void);
-extern void sdfat_time_fat2unix(struct sdfat_sb_info *sbi, struct timespec *ts,
+extern void sdfat_time_fat2unix(struct sdfat_sb_info *sbi, struct timespec_compat *ts,
 				DATE_TIME_T *tp);
-extern void sdfat_time_unix2fat(struct sdfat_sb_info *sbi, struct timespec *ts,
+extern void sdfat_time_unix2fat(struct sdfat_sb_info *sbi, struct timespec_compat *ts,
 				DATE_TIME_T *tp);
 extern TIMESTAMP_T *tm_now(struct sdfat_sb_info *sbi, TIMESTAMP_T *tm);
 

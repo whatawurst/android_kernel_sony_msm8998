@@ -1,6 +1,6 @@
 #
 # Automatically generated file; DO NOT EDIT.
-# Linux/arm64 4.4.155 Kernel Configuration
+# Linux/arm64 4.4.176 Kernel Configuration
 #
 CONFIG_ARM64=y
 CONFIG_64BIT=y
@@ -2065,6 +2065,7 @@ CONFIG_HW_RANDOM_MSM_LEGACY=y
 # CONFIG_MSM_SMD_PKT is not set
 # CONFIG_XILLYBUS is not set
 CONFIG_MSM_ADSPRPC=y
+# CONFIG_MSM_ADSPRPC_SECURE_ENABLE is not set
 CONFIG_MSM_RDBG=m
 
 #
