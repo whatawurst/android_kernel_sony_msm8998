@@ -666,6 +666,15 @@ config TOF_SENSOR
 	  To compile this driver as a module, choose M here: the
 	  module will be called tof_sensor.
 
+config SENSORS_TCS3490
+	tristate "AMS TCS3490 Sensor Driver"
+	depends on I2C
+	default n
+	help
+	  If you say yes here you get support for the AMS tcs3490,
+	  ALS and color light sensors.
+	  This driver can also be build as module.
+
 config SIM_DETECT
 	tristate "SIM_DETECT driver support"
 	default n
