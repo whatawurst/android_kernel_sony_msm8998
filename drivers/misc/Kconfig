@@ -583,6 +583,28 @@ config MEMORY_STATE_TIME
 	help
 	  Memory time statistics exported to /sys/kernel/memory_state_time
 
+config RAMDUMP_TAGS
+	bool "Ramdump tags to communicate between kernel and ramdump"
+	default n
+	depends on !RAMDUMP_CRASH_LOGS
+	help
+	  This option enables a driver which can be interacted with to
+	  supply the ramdumper with more information about the current
+	  state of the crashing kernel such as build info, HWWD registers,
+	  additional CPU registers not stored in crash_notes, crashing
+	  application info etc. A small amount of memory will be set
+	  aside to hold the information which will later be used by
+	  the ramdump application.
+
+config RAMDUMP_MEMDESC
+	bool "Ramdump memory descriptors"
+	default n
+	help
+	  This is a ramdump_mem_desc driver which adds the
+	  memory descriptors in Normal mode into a piece of debug memory
+	  and split the contents and exports it as /proc/mem_desc
+	  in Ramdump mode to support ramdump functionality
+
 config NFC_PN553_DEVICES
 	tristate "Nxp pn553 NCI protocol driver (I2C) devices"
 	default y
