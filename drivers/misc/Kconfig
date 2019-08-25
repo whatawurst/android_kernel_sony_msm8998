@@ -657,6 +657,15 @@ config LDO_VIBRATOR
 	  on the LDO line. The vibrator is controlled using the
 	  timed output class.
 
+config TOF_SENSOR
+	tristate "ToF Sensor"
+	depends on I2C
+	---help---
+	  Say Y here if you want to use ToF sensor.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called tof_sensor.
+
 config SIM_DETECT
 	tristate "SIM_DETECT driver support"
 	default n
