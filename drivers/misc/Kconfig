@@ -622,6 +622,14 @@ config CXD224X_NFC
 	  device by using I2C. Furthermore, this driver enables the
 	  control of PON using device file.
 
+config BD7602_POWER_IC
+	bool "BD7602 Power IC control"
+	depends on I2C
+	default n
+	help
+	  This option enables device driver support for BD7602 Power IC
+	  control device.
+
 config NFC_PN553_DEVICES
 	tristate "Nxp pn553 NCI protocol driver (I2C) devices"
 	default y
