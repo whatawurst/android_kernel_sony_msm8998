@@ -10,6 +10,11 @@
  *  Copyright (c) 2013 Colin Leitner <colin.leitner@gmail.com>
  *  Copyright (c) 2014 Frank Praznik <frank.praznik@gmail.com>
  */
+/*
+ * NOTE: This file has been modified by Sony Mobile Communications Inc.
+ * Modifications are Copyright (c) 2016 Sony Mobile Communications Inc,
+ * and licensed under the license of the file.
+ */
 
 /*
  * This program is free software; you can redistribute it and/or modify it
@@ -2277,6 +2282,11 @@ static int sony_probe(struct hid_device *hdev, const struct hid_device_id *id)
 	hid_set_drvdata(hdev, sc);
 	sc->hdev = hdev;
 
+	if (sc->quirks & DUALSHOCK4_CONTROLLER_USB) {
+		hid_dbg(hdev, "Ignoring DUALSHOCK4 Controller via USB\n");
+		return 0;
+	}
+
 	ret = hid_parse(hdev);
 	if (ret) {
 		hid_err(hdev, "parse failed\n");
@@ -2403,6 +2413,11 @@ err_stop:
 static void sony_remove(struct hid_device *hdev)
 {
 	struct sony_sc *sc = hid_get_drvdata(hdev);
+
+	if (sc->quirks & DUALSHOCK4_CONTROLLER_USB) {
+		hid_dbg(hdev, "Ignoring DUALSHOCK4 Controller via USB\n");
+		return;
+	}
 
 	if (sc->quirks & SONY_LED_SUPPORT)
 		sony_leds_remove(sc);
