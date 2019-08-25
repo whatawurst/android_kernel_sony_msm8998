@@ -630,6 +630,16 @@ config BD7602_POWER_IC
 	  This option enables device driver support for BD7602 Power IC
 	  control device.
 
+config ONESEG_TUNER_SMTVJ19X
+	tristate "ONESEG tuner driver for SMT-VJ19x"
+	default n
+	depends on SPI
+	help
+	  Select this module to enable 1seg Tuner Driver which supports
+	  1seg contents viewing.
+	  This module controls power switching and reset switching of
+	  SMT-VJ19x.
+
 config NFC_PN553_DEVICES
 	tristate "Nxp pn553 NCI protocol driver (I2C) devices"
 	default y
