@@ -11,6 +11,11 @@
  * GNU General Public License for more details.
  *
  */
+/*
+ * NOTE: This file has been modified by Sony Mobile Communications Inc.
+ * Modifications are Copyright (c) 2018 Sony Mobile Communications Inc,
+ * and licensed under the license of the file.
+ */
 #include <linux/module.h>
 #include <linux/uaccess.h>
 #include <linux/sched.h>
@@ -2440,7 +2445,7 @@ static void adreno_regwrite(struct kgsl_device *device,
 	/*ensure previous writes post before this one,
 	 * i.e. act like normal writel() */
 	wmb();
-	__raw_writel(value, reg);
+	__raw_writel_no_log(value, reg);
 }
 
 /**
