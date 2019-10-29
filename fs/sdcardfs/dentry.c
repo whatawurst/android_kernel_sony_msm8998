@@ -17,6 +17,11 @@
  * under the terms of the Apache 2.0 License OR version 2 of the GNU
  * General Public License.
  */
+/*
+ * NOTE: This file has been modified by Sony Mobile Communications Inc.
+ * Modifications are Copyright (c) 2018 Sony Mobile Communications Inc,
+ * and licensed under the license of the file.
+ */
 
 #include "sdcardfs.h"
 #include "linux/ctype.h"
@@ -126,7 +131,10 @@ out:
 /* 1 = delete, 0 = cache */
 static int sdcardfs_d_delete(const struct dentry *d)
 {
-	return SDCARDFS_SB(d->d_sb)->options.nocache ? 1 : 0;
+	if (SDCARDFS_SB(d->d_sb)->options.nocache)
+		return d->d_inode && !S_ISDIR(d->d_inode->i_mode);
+
+	return 0;
 }
 
 static void sdcardfs_d_release(struct dentry *dentry)
