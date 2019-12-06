@@ -31,7 +31,7 @@ static int send4(struct wg_device *wg, struct sk_buff *skb,
 	struct sock *sock;
 	int ret = 0;
 
-	skb->next = skb->prev = NULL;
+	skb_mark_not_on_list(skb);
 	skb->dev = wg->dev;
 	skb->mark = wg->fwmark;
 
@@ -117,7 +117,7 @@ static int send6(struct wg_device *wg, struct sk_buff *skb,
 	struct sock *sock;
 	int ret = 0;
 
-	skb->next = skb->prev = NULL;
+	skb_mark_not_on_list(skb);
 	skb->dev = wg->dev;
 	skb->mark = wg->fwmark;
 
@@ -410,7 +410,7 @@ retry:
 	}
 #endif
 
-	wg_socket_reinit(wg, new4 ? new4->sk : NULL, new6 ? new6->sk : NULL);
+	wg_socket_reinit(wg, new4->sk, new6 ? new6->sk : NULL);
 	return 0;
 }
 
