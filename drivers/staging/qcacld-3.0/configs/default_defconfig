@@ -331,12 +331,14 @@ endif
 # builds. Other OEMs are also protected using the TARGET_BUILD_VARIANT
 # config.
 ifneq ($(TARGET_BUILD_VARIANT),user)
-	ifeq ($(CONFIG_LITHIUM), y)
-		CONFIG_FEATURE_PKTLOG := n
-	else
-		CONFIG_FEATURE_PKTLOG := y
+	ifneq ($(TARGET_BUILD_VARIANT),userdebug)
+		ifeq ($(CONFIG_LITHIUM), y)
+			CONFIG_FEATURE_PKTLOG := n
+		else
+			CONFIG_FEATURE_PKTLOG := y
+		endif
+		CONFIG_WLAN_DEBUG_CRASH_INJECT := y
 	endif
-	CONFIG_WLAN_DEBUG_CRASH_INJECT := y
 endif
 
 #Enable WLAN/Power debugfs feature only if debug_fs is enabled
@@ -666,8 +668,10 @@ CONFIG_WLAN_LOGGING_SOCK_SVC := y
 endif
 
 ifneq ($(TARGET_BUILD_VARIANT),user)
-CONFIG_DESC_DUP_DETECT_DEBUG := y
-CONFIG_DEBUG_RX_RING_BUFFER := y
+	ifneq ($(TARGET_BUILD_VARIANT),userdebug)
+		CONFIG_DESC_DUP_DETECT_DEBUG := y
+		CONFIG_DEBUG_RX_RING_BUFFER := y
+	endif
 endif
 
 CONFIG_DP_TRACE := y
