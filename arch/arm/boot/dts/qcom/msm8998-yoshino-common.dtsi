@@ -52,6 +52,15 @@
 					fsmgr_flags = "wait,verify";
 					status = "ok";
 			};
+ 
+			ocm {
+					compatible = "android,oem";
+					dev = "/dev/block/platform/soc/1da4000.ufshc/by-name/oem";
+					type = "ext4";
+					mnt_flags = "ro,barrier=1";
+					fsmgr_flags = "wait";
+					status = "ok";
+			};
 		};
 	};
 };
