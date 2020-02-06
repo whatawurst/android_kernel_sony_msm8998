@@ -33,38 +33,6 @@
 #include "dfr.h"
 #endif
 
-/*************************************************************************
- * FUNCTIONS WHICH HAS KERNEL VERSION DEPENDENCY
- *************************************************************************/
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 16, 0)
-#include <linux/iversion.h>
-#define INC_IVERSION(x)		(inode_inc_iversion(x))
-#define GET_IVERSION(x)		(inode_peek_iversion_raw(x))
-#define SET_IVERSION(x,y)	(inode_set_iversion(x, y))
-#else
-#define INC_IVERSION(x)		(x->i_version++)
-#define GET_IVERSION(x)		(x->i_version)
-#define SET_IVERSION(x,y)	(x->i_version = y)
-#endif
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 18, 0)
-#define timespec_compat	timespec64
-#else
-#define timespec_compat	timespec
-#endif
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 18, 0)
-#define CURRENT_TIME_SEC	timespec64_trunc(current_kernel_time64(), NSEC_PER_SEC)
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
-#define CURRENT_TIME_SEC	timespec_trunc(current_kernel_time(), NSEC_PER_SEC)
-#endif
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
-#define SDFAT_IS_SB_RDONLY(sb)	((sb)->s_flags & MS_RDONLY)
-#else
-#define SDFAT_IS_SB_RDONLY(sb)	((sb)->s_flags & SB_RDONLY)
-#endif
-
 /*
  * sdfat error flags
  */
@@ -241,6 +209,12 @@ struct sdfat_inode_info {
 	struct inode vfs_inode;
 };
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 18, 0)
+typedef struct timespec64	sdfat_timespec_t;
+#else /* LINUX_VERSION_CODE < KERNEL_VERSION(4, 18, 0) */
+typedef struct timespec		sdfat_timespec_t;
+#endif
+
 /*
  * FIXME : needs on-disk-slot in-memory data
  */
@@ -382,6 +356,18 @@ static inline void setup_sdfat_xattr_handler(struct super_block *sb) {};
 #endif
 
 /* sdfat/misc.c */
+#ifdef CONFIG_SDFAT_UEVENT
+extern int sdfat_uevent_init(struct kset *sdfat_kset);
+extern void sdfat_uevent_uninit(void);
+extern void sdfat_uevent_ro_remount(struct super_block *sb);
+#else
+static inline int sdfat_uevent_init(struct kset *sdfat_kset)
+{
+	return 0;
+}
+static inline void sdfat_uevent_uninit(void) {};
+static inline void sdfat_uevent_ro_remount(struct super_block *sb) {};
+#endif
 extern void
 __sdfat_fs_error(struct super_block *sb, int report, const char *fmt, ...)
 	__printf(3, 4) __cold;
@@ -397,9 +383,9 @@ __sdfat_msg(struct super_block *sb, const char *lv, int st, const char *fmt, ...
 #define sdfat_log_msg(sb, lv, fmt, args...)          \
 	__sdfat_msg(sb, lv, 1, fmt, ## args)
 extern void sdfat_log_version(void);
-extern void sdfat_time_fat2unix(struct sdfat_sb_info *sbi, struct timespec_compat *ts,
+extern void sdfat_time_fat2unix(struct sdfat_sb_info *sbi, sdfat_timespec_t *ts,
 				DATE_TIME_T *tp);
-extern void sdfat_time_unix2fat(struct sdfat_sb_info *sbi, struct timespec_compat *ts,
+extern void sdfat_time_unix2fat(struct sdfat_sb_info *sbi, sdfat_timespec_t *ts,
 				DATE_TIME_T *tp);
 extern TIMESTAMP_T *tm_now(struct sdfat_sb_info *sbi, TIMESTAMP_T *tm);
 
