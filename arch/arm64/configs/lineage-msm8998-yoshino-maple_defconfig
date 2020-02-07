@@ -1,6 +1,6 @@
 #
 # Automatically generated file; DO NOT EDIT.
-# Linux/arm64 4.4.211 Kernel Configuration
+# Linux/arm64 4.4.212 Kernel Configuration
 #
 CONFIG_ARM64=y
 CONFIG_64BIT=y
@@ -4769,6 +4769,7 @@ CONFIG_SDFAT_DBG_MSG=y
 # CONFIG_SDFAT_DBG_BUGON is not set
 # CONFIG_SDFAT_DBG_WARNON is not set
 CONFIG_SDFAT_STATISTICS=y
+CONFIG_SDFAT_UEVENT=y
 # CONFIG_NTFS_FS is not set
 
 #
