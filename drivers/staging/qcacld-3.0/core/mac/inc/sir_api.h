@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2020 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -136,6 +136,28 @@ typedef uint8_t tSirVersionString[SIR_VERSION_STRING_LEN];
 #define SIR_UAPSD_FLAG_ACBE     (1 << SIR_UAPSD_BITOFFSET_ACBE)
 #define SIR_UAPSD_GET(ac, mask)      (((mask) & (SIR_UAPSD_FLAG_ ## ac)) >> SIR_UAPSD_BITOFFSET_ ## ac)
 
+/* Roam debugging related macro defines */
+#define MAX_ROAM_DEBUG_BUF_SIZE    250
+#define MAX_ROAM_EVENTS_SUPPORTED  5
+#define ROAM_FAILURE_BUF_SIZE      40
+#define TIME_STRING_LEN            24
+
+#define ROAM_CHANNEL_BUF_SIZE      300
+#define LINE_STR "========================================="
+
+/**
+ * struct mlme_roam_debug_info - Roam debug information storage structure.
+ * @trigger:            Roam trigger related data
+ * @scan:               Roam scan related data structure.
+ * @result:             Roam result parameters.
+ * @data_11kv:          Neighbor report/BTM parameters.
+ */
+struct mlme_roam_debug_info {
+       struct wmi_roam_trigger_info trigger;
+       struct wmi_roam_scan_data scan;
+       struct wmi_roam_result result;
+       struct wmi_neighbor_report_data data_11kv;
+};
 #endif
 
 /*
@@ -465,6 +487,7 @@ typedef struct sSirSmeReadyReq {
 				 struct scheduler_msg *msg);
 	QDF_STATUS (*pe_disconnect_cb) (tpAniSirGlobal mac,
 					uint8_t vdev_id);
+	void *csr_roam_pmkid_req_cb;
 } tSirSmeReadyReq, *tpSirSmeReadyReq;
 
 /**
@@ -2802,6 +2825,7 @@ struct roam_ext_params {
  * @pcl_weightage: PCL weightage
  * @channel_congestion_weightage: channel congestion weightage
  * @oce_wan_weightage: OCE WAN metrics weightage
+ * @vendor_roam_score_algorithm: Preferred vendor roam score algorithm
  */
 struct  sir_weight_config {
 	uint8_t rssi_weightage;
@@ -2815,6 +2839,7 @@ struct  sir_weight_config {
 	uint8_t pcl_weightage;
 	uint8_t channel_congestion_weightage;
 	uint8_t oce_wan_weightage;
+	uint32_t vendor_roam_score_algorithm;
 };
 
 struct sir_rssi_cfg_score  {
@@ -2875,6 +2900,7 @@ struct sir_score_config {
 	uint32_t band_weight_per_index;
 	uint32_t roam_score_delta;
 	uint32_t roam_score_delta_bitmap;
+	uint32_t cand_min_roam_score_delta;
 };
 
 /**
