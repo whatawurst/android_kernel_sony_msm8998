@@ -79,3 +79,6 @@ obj-$(CONFIG_RAMDUMP_MEMDESC) += ramdump_mem_desc.o
 obj-$(CONFIG_POWERKEY_FORCECRASH) += powerkey_forcecrash.o
 obj-$(CONFIG_MMTUNER_MN8855x) += mm_tuner/
 obj-$(CONFIG_ONESEG_TUNER_SMTVJ19X) += oneseg_tuner_drv.o
+
+subdir-ccflags-y += \
+	-Wno-enum-conversion
