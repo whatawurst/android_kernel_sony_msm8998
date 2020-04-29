@@ -82,5 +82,6 @@ obj-$(CONFIG_ONESEG_TUNER_SMTVJ19X) += oneseg_tuner_drv.o
 
 # TODO: remove me b/62058353
 subdir-ccflags-y += \
+	-Wno-enum-conversion \
 	-Wno-ignored-attributes \
 	-Wno-header-guard
