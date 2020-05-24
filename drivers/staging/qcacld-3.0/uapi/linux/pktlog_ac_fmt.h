@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2018 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2017 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -16,10 +16,9 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
+#ifndef REMOVE_PKT_LOG
 #ifndef _PKTLOG_FMT_H_
 #define _PKTLOG_FMT_H_
-
-#ifndef REMOVE_PKT_LOG
 
 #define CUR_PKTLOG_VER          10010   /* Packet log version */
 #define PKTLOG_MAGIC_NUM        7735225
@@ -65,6 +64,26 @@ struct ath_pktlog_hdr {
 	uint32_t type_specific_data;
 #endif
 } __ATTRIB_PACK;
+
+/**
+ * enum pkt_type - packet type
+ * @START_MONITOR: indicates parser to start packetdump parsing
+ * @STOP_MONITOR: indicates parser to stop packetdump parsing
+ * @TX_MGMT_PKT: TX management Packet
+ * @TX_DATA_PKT: TX data Packet
+ * @RX_MGMT_PKT: RX management Packet
+ * @RX_DATA_PKT: RX data Packet
+ *
+ * This enum has packet types
+ */
+enum pkt_type {
+	START_MONITOR = 1,
+	STOP_MONITOR,
+	TX_MGMT_PKT,
+	TX_DATA_PKT,
+	RX_MGMT_PKT,
+	RX_DATA_PKT,
+};
 
 #define ATH_PKTLOG_HDR_FLAGS_MASK 0xffff
 #define ATH_PKTLOG_HDR_FLAGS_SHIFT 0
@@ -121,13 +140,6 @@ enum {
 #define ATH_PKTLOG_PROMISC  0x000000080
 #define ATH_PKTLOG_SW_EVENT 0x000000100
 
-/* WIN defns */
-#define ATH_PKTLOG_H_INFO   0x000000200
-#define ATH_PKTLOG_STEERING 0x000000400
-#define ATH_PKTLOG_REMOTE_LOGGING_ENABLE  0x000000800
-#define ATH_PKTLOG_TX_CAPTURE_ENABLE  0x000001000
-#define ATH_PKTLOG_LITE_T2H  0x000002000
-#define ATH_PKTLOG_LITE_RX   0x000004000
 
 /* Types of packet log events */
 #define PKTLOG_TYPE_TX_CTRL      1
@@ -141,10 +153,7 @@ enum {
 #define PKTLOG_TYPE_SMART_ANTENNA 9
 #define PKTLOG_TYPE_SW_EVENT     10
 #define PKTLOG_TYPE_PKT_DUMP     11
-/* From WIN definations */
-#define PKTLOG_TYPE_LITE_T2H     23
-#define PKTLOG_TYPE_LITE_RX      24
-#define PKTLOG_TYPE_MAX          25
+#define PKTLOG_TYPE_MAX          12
 
 #define PKTLOG_MAX_TXCTL_WORDS 57       /* +2 words for bitmap */
 #define PKTLOG_MAX_TXSTATUS_WORDS 32
@@ -295,28 +304,6 @@ struct ath_pktlog_buf {
 				sizeof(struct ath_pktlog_hdr)) ? _rd_offset : 0; \
 	} while (0)
 
-#endif /* REMOVE_PKT_LOG */
-
-/**
- * enum pkt_type - packet type
- * @START_MONITOR: indicates parser to start packetdump parsing
- * @STOP_MONITOR: indicates parser to stop packetdump parsing
- * @TX_MGMT_PKT: TX management Packet
- * @TX_DATA_PKT: TX data Packet
- * @RX_MGMT_PKT: RX management Packet
- * @RX_DATA_PKT: RX data Packet
- *
- * This enum has packet types
- */
-enum pkt_type {
-	START_MONITOR = 1,
-	STOP_MONITOR,
-	TX_MGMT_PKT,
-	TX_DATA_PKT,
-	RX_MGMT_PKT,
-	RX_DATA_PKT,
-};
-
 /**
  * enum tx_pkt_fate - tx packet fate
  * @TX_PKT_FATE_ACKED: Sent over air and ACKed
@@ -395,3 +382,4 @@ enum rx_pkt_fate {
 };
 
 #endif /* _PKTLOG_FMT_H_ */
+#endif /* REMOVE_PKT_LOG */

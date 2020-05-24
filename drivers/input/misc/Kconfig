@@ -866,14 +866,14 @@ config INPUT_ADUX1050
 	  The module will be called adux1050.ko
 
 config ADUX1050_DEBUG
-	bool " Debug :To enable the Basic debug support for the driver"
+	bool "Debug: To enable the Basic debug support for the driver"
 	depends on INPUT_ADUX1050
 	default n
 	help
 	  To add the basic debug support of the driver in the build. Used in printing the debug information on the console.
 
 config ADUX1050_EVAL
-	bool "Eval : To enable the driver in evaluation mode for test "
+	bool "Eval: To enable the driver in evaluation mode for test "
 	depends on INPUT_ADUX1050
 	default n
 	help

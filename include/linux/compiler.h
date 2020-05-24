@@ -502,7 +502,7 @@ static __always_inline void __write_once_size(volatile void *p, void *res, int s
  * compiler has support to do so.
  */
 #define compiletime_assert(condition, msg) \
-	_compiletime_assert(condition, msg, __compiletime_assert_, __LINE__)
+	_compiletime_assert(condition, msg, __compiletime_assert_, __COUNTER__)
 
 #define compiletime_assert_atomic_type(t)				\
 	compiletime_assert(__native_word(t),				\
@@ -556,4 +556,11 @@ static __always_inline void __write_once_size(volatile void *p, void *res, int s
 # define __kprobes
 # define nokprobe_inline	inline
 #endif
+
+/*
+ * This is needed in functions which generate the stack canary, see
+ * arch/x86/kernel/smpboot.c::start_secondary() for an example.
+ */
+#define prevent_tail_call_optimization()	mb()
+
 #endif /* __LINUX_COMPILER_H */
