@@ -589,6 +589,12 @@ int __inet_hash_connect(struct inet_timewait_death_row *death_row,
 		return -EADDRNOTAVAIL;
 
 ok:
+		/* If our first attempt found a candidate, skip next candidate
+		 * in 1/16 of cases to add some noise.
+		 */
+		if (!i && !(prandom_u32() % 16))
+			i = 2;
+
 		WRITE_ONCE(table_perturb[index], READ_ONCE(table_perturb[index]) + (i + 2) & ~1);
 
 		/* Head lock still held and bh's disabled */
