@@ -223,6 +223,7 @@ dtb-$(CONFIG_MACH_SONY_POPLAR) += msm8998-yoshino-poplar_generic.dtb \
 dtb-$(CONFIG_MACH_SONY_POPLAR_DSDS) += msm8998-yoshino-poplar_dsds.dtb \
 	msm8998-v2-yoshino-poplar_dsds.dtb \
 	msm8998-v2.1-yoshino-poplar_dsds.dtb
+dtb-$(CONFIG_MACH_SONY_POPLAR_KDDI) += msm8998-v2.1-yoshino-poplar_kddi.dtb
 dtb-$(CONFIG_MACH_SONY_LILAC) += msm8998-yoshino-lilac_generic.dtb \
 	msm8998-v2-yoshino-lilac_generic.dtb \
 	msm8998-v2.1-yoshino-lilac_generic.dtb

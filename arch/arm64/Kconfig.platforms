@@ -123,6 +123,15 @@ config MACH_SONY_POPLAR_DSDS
 	If you enable this config,
 	please use SONY Mobile device tree.
 
+config MACH_SONY_POPLAR_KDDI
+	bool "Sony Mobile Poplar Kddi"
+	depends on ARCH_SONY_YOSHINO
+	help
+	Support for the SONY Mobile Poplar Kddi device
+	which is based on SONY Yoshino platform.
+	If you enable this config,
+	please use SONY Mobile device tree.
+
 config MACH_SONY_LILAC
 	bool "Sony Mobile Lilac"
 	depends on ARCH_SONY_YOSHINO
