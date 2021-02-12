@@ -317,6 +317,7 @@ static struct device_attribute power_supply_attrs[] = {
 	POWER_SUPPLY_ATTR(enable_jeita_detection),
 	POWER_SUPPLY_ATTR(allow_hvdcp3),
 	POWER_SUPPLY_ATTR(max_pulse_allowed),
+	POWER_SUPPLY_ATTR(fg_reset_clock),
 	POWER_SUPPLY_ATTR(skin_temp),
 	POWER_SUPPLY_ATTR(smart_charging_activation),
 	POWER_SUPPLY_ATTR(smart_charging_interruption),

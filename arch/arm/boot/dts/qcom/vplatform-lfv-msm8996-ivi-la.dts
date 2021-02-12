@@ -227,15 +227,19 @@
 	};
 };
 
+&ion {
+	/delete-node/ qcom,ion-heap@25;
+
+	system_heap: qcom,ion-heap@25 {
+		reg = <25>;
+		qcom,ion-heap-type = "SYSTEM";
+	};
+};
+
 &reserved_memory {
 	pmem_shared: pmem_shared_region {
 		reg = <0 0xd0000000 0 0x30000000>;
 		label = "pmem_shared_mem";
-	};
-
-	ion_system: ion_system_region {
-		reg = <0x1 0x0 0 0x10000000>;
-		label = "ion_system_mem";
 	};
 
 	ion_audio: ion_audio_region {
