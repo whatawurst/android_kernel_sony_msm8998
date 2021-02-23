@@ -173,6 +173,12 @@
 			preset_x_max = <2159>;
 			preset_y_max = <3839>;
 			preset_n_fingers = <10>;
+			/* Stamina Mode */
+			stamina_mode_supported = <0x80000003>;
+			/* F01_RMI_CTRL05: Doze Holdoff */
+			doze_default_time = <35>;
+			doze_glove_mode_time = <35>;
+			doze_cover_mode_time = <35>;
 			wakeup_gesture {
 				double_tap {
 					gesture_code = <0x0003>;
