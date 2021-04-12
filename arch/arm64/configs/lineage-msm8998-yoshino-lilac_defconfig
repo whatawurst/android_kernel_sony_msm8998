@@ -1,6 +1,6 @@
 #
 # Automatically generated file; DO NOT EDIT.
-# Linux/arm64 4.4.260 Kernel Configuration
+# Linux/arm64 4.4.266 Kernel Configuration
 #
 CONFIG_ARM64=y
 CONFIG_64BIT=y
@@ -4227,7 +4227,6 @@ CONFIG_MSM_ADSP_LOADER=y
 # CONFIG_MSM_CDSP_LOADER is not set
 # CONFIG_MSM_LPASS_RESOURCE_MANAGER is not set
 # CONFIG_MSM_PERFORMANCE is not set
-# CONFIG_MSM_PERFORMANCE_HOTPLUG_ON is not set
 CONFIG_MSM_SUBSYSTEM_RESTART=y
 # CONFIG_MSM_SYSMON_COMM is not set
 CONFIG_MSM_PIL=y
