@@ -219,6 +219,7 @@ static int xen_blkif_disconnect(struct xen_blkif *blkif)
 
 	if (blkif->xenblkd) {
 		kthread_stop(blkif->xenblkd);
+		blkif->xenblkd = NULL;
 		wake_up(&blkif->shutdown_wq);
 	}
 
@@ -553,7 +554,8 @@ static int xen_blkbk_probe(struct xenbus_device *dev,
 	/* setup back pointer */
 	be->blkif->be = be;
 
-	err = xenbus_watch_pathfmt(dev, &be->backend_watch, backend_changed,
+	err = xenbus_watch_pathfmt(dev, &be->backend_watch, NULL,
+				   backend_changed,
 				   "%s/%s", dev->nodename, "physical-device");
 	if (err)
 		goto fail;

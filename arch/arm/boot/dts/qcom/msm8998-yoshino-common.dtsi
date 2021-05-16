@@ -29,7 +29,7 @@
 			label = "debug_mem";
 		};
 
-		pstore_reserve_mem: pstore_reserve_mem_region_region@ffc00000 {
+		pstore_reserve_mem: pstore_reserve_mem_region@ffc00000 {
 			compatible = "removed-dma-pool";
 			no-map;
 			reg = <0 0xffc00000 0 0x00100000>;
@@ -173,6 +173,12 @@
 			preset_x_max = <2159>;
 			preset_y_max = <3839>;
 			preset_n_fingers = <10>;
+			/* Stamina Mode */
+			stamina_mode_supported = <0x80000000>;
+			/* F01_RMI_CTRL05: Doze Holdoff */
+			doze_default_time = <35>;
+			doze_glove_mode_time = <35>;
+			doze_cover_mode_time = <35>;
 			wakeup_gesture {
 				double_tap {
 					gesture_code = <0x0003>;
@@ -3462,6 +3468,15 @@
 	};
 };
 
+&mdss_hdmi_tx {
+	/delete-property/ pinctrl-names;
+	/delete-property/ pinctrl-0;
+	/delete-property/ pinctrl-1;
+	/delete-property/ pinctrl-2;
+	/delete-property/ pinctrl-3;
+	/delete-property/ pinctrl-4;
+};
+
 &pmx_mdss {
 	mdss_dsi_active: mdss_dsi_active {
 		mux {
@@ -3610,7 +3625,7 @@
 	linux,name = "wled";
 	qcom,fs-curr-ua = <24000>;
 	qcom,led-strings-list = [00 01 02];
-	somc,init-br-ua = <10000>;
+	somc,init-br-ua = <1200>;
 	somc-s1,br-power-save-ua = <800>;
 	somc,bl-scale-enabled;
 	somc,area_count_table_size = <0>;

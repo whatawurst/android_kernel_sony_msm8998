@@ -28,6 +28,7 @@
 #include <linux/hdcp_qseecom.h>
 #include <linux/msm_mdp.h>
 #include <linux/msm_ext_display.h>
+#include <linux/hdmi.h>
 
 #define REG_DUMP 0
 
@@ -3045,6 +3046,96 @@ static void hdmi_tx_phy_reset(struct hdmi_tx_ctrl *hdmi_ctrl)
 		DSS_REG_W_ND(io, HDMI_PHY_CTRL, val | SW_RESET_PLL);
 } /* hdmi_tx_phy_reset */
 
+static u8 calc_infoframe_checksum(u8 *ptr, size_t size)
+{
+	u8 csum = 0;
+	size_t i;
+
+	/* compute checksum */
+	for (i = 0; i < size; i++)
+		csum += ptr[i];
+
+	return 256 - csum;
+}
+
+static u8 hdmi_panel_set_hdr_checksum(struct mdp_hdr_stream *hdr_meta)
+{
+	u8 *buff;
+	u8 *ptr;
+	u32 length;
+	u32 size;
+	u32 checksum = 0;
+	u32 const type_code = 0x87;
+	u32 const version = 0x01;
+	u32 const descriptor_id = 0x00;
+
+	/* length of metadata is 26 bytes */
+	length = 0x1a;
+	/* add 4 bytes for the header */
+	size = length + HDMI_INFOFRAME_HEADER_SIZE;
+
+	buff = kzalloc(size, GFP_KERNEL);
+
+	if (!buff) {
+		DEV_ERR("invalid buff\n");
+		goto err_alloc;
+	}
+
+	ptr = buff;
+
+	buff[0] = type_code;
+	buff[1] = version;
+	buff[2] = length;
+	buff[3] = 0;
+	/* start infoframe payload */
+	buff += HDMI_INFOFRAME_HEADER_SIZE;
+
+	buff[0] = hdr_meta->eotf;
+	buff[1] = descriptor_id;
+
+	buff[2] = hdr_meta->display_primaries_x[0] & 0xff;
+	buff[3] = hdr_meta->display_primaries_x[0] >> 8;
+
+	buff[4] = hdr_meta->display_primaries_x[1] & 0xff;
+	buff[5] = hdr_meta->display_primaries_x[1] >> 8;
+
+	buff[6] = hdr_meta->display_primaries_x[2] & 0xff;
+	buff[7] = hdr_meta->display_primaries_x[2] >> 8;
+
+	buff[8] = hdr_meta->display_primaries_y[0] & 0xff;
+	buff[9] = hdr_meta->display_primaries_y[0] >> 8;
+
+	buff[10] = hdr_meta->display_primaries_y[1] & 0xff;
+	buff[11] = hdr_meta->display_primaries_y[1] >> 8;
+
+	buff[12] = hdr_meta->display_primaries_y[2] & 0xff;
+	buff[13] = hdr_meta->display_primaries_y[2] >> 8;
+
+	buff[14] = hdr_meta->white_point_x & 0xff;
+	buff[15] = hdr_meta->white_point_x >> 8;
+	buff[16] = hdr_meta->white_point_y & 0xff;
+	buff[17] = hdr_meta->white_point_y >> 8;
+
+	buff[18] = hdr_meta->max_luminance & 0xff;
+	buff[19] = hdr_meta->max_luminance >> 8;
+
+	buff[20] = hdr_meta->min_luminance & 0xff;
+	buff[21] = hdr_meta->min_luminance >> 8;
+
+	buff[22] = hdr_meta->max_content_light_level & 0xff;
+	buff[23] = hdr_meta->max_content_light_level >> 8;
+
+	buff[24] = hdr_meta->max_average_light_level & 0xff;
+	buff[25] = hdr_meta->max_average_light_level >> 8;
+
+	checksum = calc_infoframe_checksum(ptr, size);
+
+	kfree(ptr);
+
+err_alloc:
+	return checksum;
+}
+
 static void hdmi_panel_set_hdr_infoframe(struct hdmi_tx_ctrl *ctrl)
 {
 	u32 packet_payload = 0;
@@ -3054,7 +3145,9 @@ static void hdmi_panel_set_hdr_infoframe(struct hdmi_tx_ctrl *ctrl)
 	u32 const version = 0x01;
 	u32 const length = 0x1a;
 	u32 const descriptor_id = 0x00;
+	u8 checksum = 0;
 	struct dss_io_data *io = NULL;
+
 
 	if (!ctrl) {
 		pr_err("%s: invalid input\n", __func__);
@@ -3076,7 +3169,18 @@ static void hdmi_panel_set_hdr_infoframe(struct hdmi_tx_ctrl *ctrl)
 	packet_header = type_code | (version << 8) | (length << 16);
 	DSS_REG_W(io, HDMI_GENERIC0_HDR, packet_header);
 
-	packet_payload = (ctrl->hdr_ctrl.hdr_stream.eotf << 8);
+	/**
+	 * Checksum is not a mandatory field for
+	 * the HDR infoframe as per CEA-861-3 specification.
+	 * However some HDMI sinks still expect a
+	 * valid checksum to be included as part of
+	 * the infoframe. Hence compute and add
+	 * the checksum to improve sink interoperability
+	 * for our HDR solution on HDMI.
+	 */
+	checksum = hdmi_panel_set_hdr_checksum(&ctrl->hdr_ctrl.hdr_stream);
+
+	packet_payload = ((ctrl->hdr_ctrl.hdr_stream.eotf << 8) | checksum);
 	if (hdmi_tx_metadata_type_one(ctrl)) {
 		packet_payload |=
 			(descriptor_id << 16)
@@ -3438,6 +3542,9 @@ static int hdmi_tx_power_off(struct hdmi_tx_ctrl *hdmi_ctrl)
 
 	hdmi_ctrl->panel_power_on = false;
 	hdmi_ctrl->vic = 0;
+
+	hdmi_ctrl->use_bt2020 = false;
+	hdmi_ctrl->curr_hdr_state = HDR_DISABLE;
 
 	if (hdmi_ctrl->hpd_off_pending || hdmi_ctrl->panel_suspend)
 		hdmi_tx_hpd_off(hdmi_ctrl);
@@ -4132,6 +4239,7 @@ sysfs_err:
 static int hdmi_tx_evt_handle_check_param(struct hdmi_tx_ctrl *hdmi_ctrl)
 {
 	struct mdss_panel_info *pinfo = &hdmi_ctrl->panel_data.panel_info;
+	void *data = NULL;
 	int new_vic = -1;
 	int rc = 0;
 
@@ -4142,6 +4250,10 @@ static int hdmi_tx_evt_handle_check_param(struct hdmi_tx_ctrl *hdmi_ctrl)
 		DEV_ERR("%s: invalid or not supported vic\n", __func__);
 		goto end;
 	}
+
+	data = hdmi_tx_get_fd(HDMI_TX_FEAT_EDID);
+	pinfo->physical_width = hdmi_edid_get_phys_width(data);
+	pinfo->physical_height = hdmi_edid_get_phys_height(data);
 
 	/*
 	 * return value of 1 lets mdss know that panel
