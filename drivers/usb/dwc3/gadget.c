@@ -2737,12 +2737,14 @@ static irqreturn_t dwc3_thread_interrupt(int irq, void *_dwc)
 	irqreturn_t ret = IRQ_NONE;
 	int i;
 
+	local_bh_disable();
 	spin_lock_irqsave(&dwc->lock, flags);
 
 	for (i = 0; i < dwc->num_event_buffers; i++)
 		ret |= dwc3_process_event_buf(dwc, i);
 
 	spin_unlock_irqrestore(&dwc->lock, flags);
+	local_bh_enable();
 
 	return ret;
 }
