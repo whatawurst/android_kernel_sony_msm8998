@@ -24,7 +24,12 @@
 	android {
 		fstab {
 			vendor {
-				status = "disabled";
+					compatible = "android,vendor";
+					dev = "/dev/block/platform/soc/1da4000.ufshc/by-name/oem";
+					type = "ext4";
+					mnt_flags = "ro,barrier=1,discard";
+					fsmgr_flags = "wait,verify";
+					status = "ok";
 			};
 		};
 	};
