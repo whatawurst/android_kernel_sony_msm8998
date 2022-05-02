@@ -588,6 +588,14 @@ int __inet_hash_connect(struct inet_timewait_death_row *death_row,
 		return -EADDRNOTAVAIL;
 
 ok:
+		/* Here we want to add a little bit of randomness to the next source
+		 * port that will be chosen. We use a max() with a random here so that
+		 * on low contention the randomness is maximal and on high contention
+		 * it may be inexistent.
+		 */
+		i = max_t(int, i, (prandom_u32() & 7) * 2);
+		WRITE_ONCE(table_perturb[index], READ_ONCE(table_perturb[index]) + i + 2);
+		
 		/* If our first attempt found a candidate, skip next candidate
 		 * in 1/16 of cases to add some noise.
 		 */
