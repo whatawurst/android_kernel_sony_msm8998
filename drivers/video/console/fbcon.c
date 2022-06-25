@@ -2428,6 +2428,11 @@ static int fbcon_set_font(struct vc_data *vc, struct console_font *font, unsigne
 	if (charcount != 256 && charcount != 512)
 		return -EINVAL;
 
+	/* font bigger than screen resolution ? */
+	if (w > FBCON_SWAP(info->var.rotate, info->var.xres, info->var.yres) ||
+	    h > FBCON_SWAP(info->var.rotate, info->var.yres, info->var.xres))
+		return -EINVAL;
+
 	if (font->width > 32 || font->height > 32)
 		return -EINVAL;
 
