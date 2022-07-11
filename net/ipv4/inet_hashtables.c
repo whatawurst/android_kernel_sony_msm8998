@@ -501,6 +501,17 @@ void inet_unhash(struct sock *sk)
 }
 EXPORT_SYMBOL_GPL(inet_unhash);
 
+/* RFC 6056 3.3.4.  Algorithm 4: Double-Hash Port Selection Algorithm
+ * Note that we use 32bit integers (vs RFC 'short integers')
+ * because 2^16 is not a multiple of num_ephemeral and this
+ * property might be used by clever attacker.
+ * RFC claims using TABLE_LENGTH=10 buckets gives an improvement,
+ * we use 256 instead to really give more isolation and
+ * privacy, this only consumes 1 KB of kernel memory.
+ */
+#define INET_TABLE_PERTURB_SHIFT 8
+static u32 table_perturb[1 << INET_TABLE_PERTURB_SHIFT];
+
 int __inet_hash_connect(struct inet_timewait_death_row *death_row,
 		struct sock *sk, u32 port_offset,
 		int (*check_established)(struct inet_timewait_death_row *,
@@ -515,9 +526,14 @@ int __inet_hash_connect(struct inet_timewait_death_row *death_row,
 
 	if (!snum) {
 		int i, remaining, low, high, port;
-		static u32 hint;
-		u32 offset = hint + port_offset;
+		u32 index;
+		u32 offset;
 		struct inet_timewait_sock *tw = NULL;
+
+		net_get_random_once(table_perturb, sizeof(table_perturb));
+		index = hash_32(port_offset, INET_TABLE_PERTURB_SHIFT);
+
+		offset = READ_ONCE(table_perturb[index]) + port_offset;
 
 		inet_get_local_port_range(net, &low, &high);
 		remaining = (high - low) + 1;
@@ -573,7 +589,7 @@ int __inet_hash_connect(struct inet_timewait_death_row *death_row,
 		return -EADDRNOTAVAIL;
 
 ok:
-		hint += (i + 2) & ~1;
+		WRITE_ONCE(table_perturb[index], READ_ONCE(table_perturb[index]) + (i + 2) & ~1);
 
 		/* Head lock still held and bh's disabled */
 		inet_bind_hash(sk, tb, port);
