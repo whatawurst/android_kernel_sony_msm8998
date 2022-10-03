@@ -87,7 +87,7 @@ static void *kaslr_imem_addr;
 #endif
 static bool scm_dload_supported;
 
-static int dload_set(const char *val, struct kernel_param *kp);
+static int dload_set(const char *val, const struct kernel_param *kp);
 /* interface for exporting attributes */
 struct reset_attribute {
 	struct attribute        attr;
@@ -189,7 +189,7 @@ static void enable_emergency_dload_mode(void)
 }
 #endif
 
-static int dload_set(const char *val, struct kernel_param *kp)
+static int dload_set(const char *val, const struct kernel_param *kp)
 {
 	int ret;
 	int old_val = download_mode;
