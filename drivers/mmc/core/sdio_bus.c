@@ -273,6 +273,8 @@ static void sdio_release_func(struct device *dev)
 	 * cis tables for this func
 	 */
 	if (!func->card->host->embedded_sdio_data.funcs)
+#else
+	if (!(func->card->quirks & MMC_QUIRK_NONSTD_SDIO))
 #endif
 		sdio_free_func_cis(func);
 
