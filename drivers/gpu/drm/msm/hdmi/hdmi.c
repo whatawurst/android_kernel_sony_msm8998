@@ -138,6 +138,10 @@ static struct hdmi *hdmi_init(struct platform_device *pdev)
 	/* HDCP needs physical address of hdmi register */
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM,
 		config->mmio_name);
+	if (!res) {
+		ret = -EINVAL;
+		goto fail;
+	}
 	hdmi->mmio_phy_addr = res->start;
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM,
@@ -299,6 +303,11 @@ int hdmi_modeset_init(struct hdmi *hdmi,
 	struct msm_drm_private *priv = dev->dev_private;
 	struct platform_device *pdev = hdmi->pdev;
 	int ret;
+
+	if (priv->num_bridges == ARRAY_SIZE(priv->bridges)) {
+		dev_err(dev->dev, "too many bridges\n");
+		return -ENOSPC;
+	}
 
 	hdmi->dev = dev;
 	hdmi->encoder = encoder;

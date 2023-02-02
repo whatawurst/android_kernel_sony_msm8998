@@ -164,7 +164,7 @@ static irqreturn_t goldfish_tty_interrupt(int irq, void *dev_id)
 	count = tty_prepare_flip_string(&qtty->port, &buf, count);
 	goldfish_tty_rw(qtty, buf, count, 0);
 
-	tty_schedule_flip(&qtty->port);
+	tty_flip_buffer_push(&qtty->port);
 	return IRQ_HANDLED;
 }
 
