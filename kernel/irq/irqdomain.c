@@ -308,6 +308,9 @@ void irq_domain_disassociate(struct irq_domain *domain, unsigned int irq)
 		return;
 
 	hwirq = irq_data->hwirq;
+
+	mutex_lock(&irq_domain_mutex);
+
 	irq_set_status_flags(irq, IRQ_NOREQUEST);
 
 	/* remove chip and handler */
@@ -332,6 +335,8 @@ void irq_domain_disassociate(struct irq_domain *domain, unsigned int irq)
 		radix_tree_delete(&domain->revmap_tree, hwirq);
 		mutex_unlock(&revmap_trees_mutex);
 	}
+
+	mutex_unlock(&irq_domain_mutex);
 }
 
 static int irq_domain_associate_locked(struct irq_domain *domain, unsigned int virq,
