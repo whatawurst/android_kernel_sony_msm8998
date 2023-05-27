@@ -2386,15 +2386,19 @@ static struct nft_set *nf_tables_set_lookup(const struct nft_table *table,
 }
 
 static struct nft_set *nf_tables_set_lookup_byid(const struct net *net,
+					  const struct nft_table *table,
 					  const struct nlattr *nla)
 {
 	struct nft_trans *trans;
 	u32 id = ntohl(nla_get_be32(nla));
 
 	list_for_each_entry(trans, &net->nft.commit_list, list) {
+		struct nft_set *set = nft_trans_set(trans);
+
 		if (trans->msg_type == NFT_MSG_NEWSET &&
-		    id == nft_trans_set_id(trans))
-			return nft_trans_set(trans);
+		    id == nft_trans_set_id(trans) &&
+		    set->table == table)
+			return set;
 	}
 	return ERR_PTR(-ENOENT);
 }
@@ -2411,7 +2415,7 @@ struct nft_set *nft_set_lookup(const struct net *net,
 		if (!nla_set_id)
 			return set;
 
-		set = nf_tables_set_lookup_byid(net, nla_set_id);
+		set = nf_tables_set_lookup_byid(net, table, nla_set_id);
 	}
 	return set;
 }
@@ -2851,6 +2855,7 @@ static int nf_tables_newset(struct net *net, struct sock *nlsk,
 
 	INIT_LIST_HEAD(&set->bindings);
 	write_pnet(&set->pnet, net);
+	set->table = table;
 	set->ops   = ops;
 	set->ktype = ktype;
 	set->klen  = desc.klen;
@@ -3564,7 +3569,7 @@ static int nf_tables_newsetelem(struct net *net, struct sock *nlsk,
 	set = nf_tables_set_lookup(ctx.table, nla[NFTA_SET_ELEM_LIST_SET]);
 	if (IS_ERR(set)) {
 		if (nla[NFTA_SET_ELEM_LIST_SET_ID]) {
-			set = nf_tables_set_lookup_byid(net,
+			set = nf_tables_set_lookup_byid(net, ctx.table,
 					nla[NFTA_SET_ELEM_LIST_SET_ID]);
 		}
 		if (IS_ERR(set))
