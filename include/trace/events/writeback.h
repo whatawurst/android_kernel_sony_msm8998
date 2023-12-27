@@ -144,7 +144,7 @@ static inline void __trace_wb_assign_cgroup(char *buf, struct bdi_writeback *wb)
 	struct cgroup *cgrp = wb->memcg_css->cgroup;
 	char *path;
 
-	sprintf(path, "%d", cgroup_path(cgrp, buf, kernfs_path_len(cgrp->kn) + 1));
+	path = cgroup_path(cgrp, buf, kernfs_path_len(cgrp->kn) + 1);
 	WARN_ON_ONCE(path != buf);
 }
 
